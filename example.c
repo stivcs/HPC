@@ -4,7 +4,7 @@
 #include <time.h>
 
 // Función para llenar matriz con enteros aleatorios
-void fill_matrix_random(int32_t **matrix, int n) {
+void llenarMatrix(int32_t **matrix, int n) {
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
             matrix[i][j] = (rand() % 101) - 50;  // Rango [-50, 50]
@@ -13,7 +13,7 @@ void fill_matrix_random(int32_t **matrix, int n) {
 }
 
 // Multiplicación de matrices
-void multiply_matrices(int32_t **A, int32_t **B, int32_t **C, int n) {
+void multiplicarMatrix(int32_t **A, int32_t **B, int32_t **C, int n) {
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
             C[i][j] = 0;
@@ -25,16 +25,16 @@ void multiply_matrices(int32_t **A, int32_t **B, int32_t **C, int n) {
 }
 
 // Imprimir matriz (opcional para pruebas)
-void print_matrix(const char *name, int32_t **matrix, int n) {
-    printf("%s:\n", name);
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
-            printf("%5d ", matrix[i][j]);
-        }
-        printf("\n");
-    }
-    printf("\n");
-}
+// void print_matrix(const char *name, int32_t **matrix, int n) {
+//     printf("%s:\n", name);
+//     for (int i = 0; i < n; i++) {
+//         for (int j = 0; j < n; j++) {
+//             printf("%5d ", matrix[i][j]);
+//         }
+//         printf("\n");
+//     }
+//     printf("\n");
+// }
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
@@ -61,14 +61,14 @@ int main(int argc, char *argv[]) {
     }
 
     // Llenar y multiplicar
-    fill_matrix_random(A, n);
-    fill_matrix_random(B, n);
-    multiply_matrices(A, B, C, n);
+    llenarMatrix(A, n);
+    llenarMatrix(B, n);
+    multiplicarMatrix(A, B, C, n);
 
     // Mostrar resultados
-    print_matrix("Matriz A", A, n);
-    print_matrix("Matriz B", B, n);
-    print_matrix("Matriz C = A * B", C, n);
+    // print_matrix("Matriz A", A, n);
+    // print_matrix("Matriz B", B, n);
+    // print_matrix("Matriz C = A * B", C, n);
 
     // Liberar memoria
     for (int i = 0; i < n; i++) {
