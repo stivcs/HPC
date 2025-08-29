@@ -24,18 +24,6 @@ void multiplicarMatrix(int32_t **A, int32_t **B, int32_t **C, int n) {
     }
 }
 
-// Imprimir matriz (opcional para pruebas)
-// void print_matrix(const char *name, int32_t **matrix, int n) {
-//     printf("%s:\n", name);
-//     for (int i = 0; i < n; i++) {
-//         for (int j = 0; j < n; j++) {
-//             printf("%5d ", matrix[i][j]);
-//         }
-//         printf("\n");
-//     }
-//     printf("\n");
-// }
-
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         // No se pasa el parámetro -> salir
