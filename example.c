@@ -51,7 +51,17 @@ int main(int argc, char *argv[]) {
     // Llenar y multiplicar
     llenarMatrix(A, n);
     llenarMatrix(B, n);
+  // Medir el tiempo de multiplicación de matrices
+    clock_t start = clock();
+
+    // Realizar la multiplicación
     multiplicarMatrix(A, B, C, n);
+
+    clock_t end = clock();
+
+    // Calcular el tiempo de CPU utilizado
+    double cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+    printf("Tiempo de CPU usado para la multiplicación: %f segundos\n", cpu_time_used);
 
     // Mostrar resultados
     // print_matrix("Matriz A", A, n);
