@@ -63,10 +63,6 @@ int main(int argc, char *argv[]) {
     double cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
     printf("Tiempo de CPU usado para la multiplicación: %f segundos\n", cpu_time_used);
 
-    // Mostrar resultados
-    // print_matrix("Matriz A", A, n);
-    // print_matrix("Matriz B", B, n);
-    // print_matrix("Matriz C = A * B", C, n);
 
     // Liberar memoria
     for (int i = 0; i < n; i++) {
