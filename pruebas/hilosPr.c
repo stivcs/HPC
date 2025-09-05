@@ -311,7 +311,7 @@ int main(int argc, char* argv[]) {
     writeResultsToCSV(csvFilename, size, iteration, stats, num_threads, "hilos_optimizado");
     if (size <= 500) validateResult(A, B, C, size);
     
-    printf("\n===== ESTADÍSTICAS DE RENDIMIENTO =====\n");
+    printf("\n===== Tiempos =====\n");
     printf("Tamaño de la matriz: %d x %d\n", size, size);
     printf("Número de hilos: %d\n", num_threads);
     printf("Tiempo real (wall clock): %.9f segundos\n", stats.real_time);
@@ -321,10 +321,6 @@ int main(int argc, char* argv[]) {
            stats.user_time, (stats.user_time / stats.total_cpu_time) * 100);
     printf("  └─ Tiempo de sistema: %.9f segundos (%.2f%%)\n", 
            stats.system_time, (stats.system_time / stats.total_cpu_time) * 100);
-    printf("Total de operaciones: %lld\n", stats.total_operations);
-    printf("Rendimiento: %.6f GOPS\n", stats.gops);
-    printf("Elementos procesados por segundo: %.6f millones\n", stats.elements_per_second);
-    printf("Memoria utilizada: aproximadamente %zu MB\n", stats.memory_used);
     printf("Datos guardados en: %s\n", csvFilename);
     
     freeMatrix(A, size);
