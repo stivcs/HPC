@@ -1,0 +1,335 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <sys/time.h>
+#include <sys/resource.h>  // Para getrusage
+#include <string.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <sys/stat.h>      // Para mkdir
+#include <errno.h>         // Para errno
+
+// Nombre del directorio para almacenamiento de datos
+#define DATA_DIR "Hilos_Data"
+
+// Función auxiliar para convertir timeval a segundos (C estándar, fuera de funciones)
+static inline double timeval_to_seconds(struct timeval tv) {
+    return (double)tv.tv_sec + (double)tv.tv_usec / 1e6;
+}
+
+// Estructura para almacenar estadísticas de rendimiento
+typedef struct {
+    double real_time;          // tiempo real en segundos (wall clock)
+    double user_time;          // tiempo de CPU en modo usuario
+    double system_time;        // tiempo de CPU en modo kernel
+    double total_cpu_time;     // suma de user_time y system_time
+    long long total_operations; // número total de operaciones aritméticas
+    double gops;                // operaciones por segundo (en miles de millones)
+    double elements_per_second; // elementos procesados por segundo (millones)
+    size_t memory_used;         // memoria aproximada en MB
+} PerformanceStats;
+
+// Estructura para pasar datos a cada hilo
+typedef struct {
+    int thread_id;
+    int num_threads;
+    int size;
+    int block_size;  // Tamaño del bloque para bloqueo
+    int** A;
+    int** B;
+    int** C;
+} ThreadData;
+
+// Función para crear directorio si no existe
+int createDirectoryIfNotExists(const char* dirPath) {
+    struct stat st = {0};
+    
+    if (stat(dirPath, &st) == -1) {
+        if (mkdir(dirPath, 0755) == -1) {
+            fprintf(stderr, "Error: No se pudo crear el directorio %s: %s\n", 
+                    dirPath, strerror(errno));
+            return 0;
+        }
+        printf("Directorio creado: %s\n", dirPath);
+    } else {
+        printf("Directorio ya existe: %s\n", dirPath);
+    }
+    return 1;
+}
+
+// Función para generar nombre de archivo CSV único
+char* generateUniqueFilename(const char* dirPath) {
+    char* filename = (char*)malloc(256);
+    if (filename == NULL) {
+        fprintf(stderr, "Error: No se pudo asignar memoria para el nombre de archivo\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    time_t t = time(NULL);
+    struct tm *tm_info = localtime(&t);
+    
+    sprintf(filename, "%s/Hilos_%04d%02d%02d_%02d%02d%02d.csv", 
+            dirPath,
+            tm_info->tm_year + 1900, 
+            tm_info->tm_mon + 1, 
+            tm_info->tm_mday,
+            tm_info->tm_hour, 
+            tm_info->tm_min, 
+            tm_info->tm_sec);
+    
+    return filename;
+}
+
+// Crear y llenar matriz con enteros aleatorios
+int** createMatrix(int size) {
+    int** matrix = (int**)malloc(size * sizeof(int*));
+    if (matrix == NULL) {
+        fprintf(stderr, "Error: No se pudo asignar memoria para la matriz\n");
+        exit(EXIT_FAILURE);
+    }
+    for (int i = 0; i < size; i++) {
+        matrix[i] = (int*)malloc(size * sizeof(int));
+        if (matrix[i] == NULL) {
+            fprintf(stderr, "Error: No se pudo asignar memoria para la fila %d\n", i);
+            for (int j = 0; j < i; j++) free(matrix[j]);
+            free(matrix);
+            exit(EXIT_FAILURE);
+        }
+        for (int j = 0; j < size; j++) {
+            matrix[i][j] = rand() % 100 + 1;
+        }
+    }
+    return matrix;
+}
+
+void freeMatrix(int** matrix, int size) {
+    for (int i = 0; i < size; i++) free(matrix[i]);
+    free(matrix);
+}
+
+int** createResultMatrix(int size) {
+    int** C = (int**)malloc(size * sizeof(int*));
+    if (C == NULL) {
+        fprintf(stderr, "Error: No se pudo asignar memoria para la matriz resultado\n");
+        exit(EXIT_FAILURE);
+    }
+    for (int i = 0; i < size; i++) {
+        C[i] = (int*)calloc(size, sizeof(int));
+        if (C[i] == NULL) {
+            fprintf(stderr, "Error: No se pudo asignar memoria para la fila %d del resultado\n", i);
+            for (int j = 0; j < i; j++) free(C[j]);
+            free(C);
+            exit(EXIT_FAILURE);
+        }
+    }
+    return C;
+}
+
+// Función que ejecutará cada hilo
+void* multiplyMatricesThreadOptimized(void* arg) {
+    ThreadData* data = (ThreadData*)arg;
+    int** A = data->A;
+    int** B = data->B;
+    int** C = data->C;
+    int size = data->size;
+    int thread_id = data->thread_id;
+    int num_threads = data->num_threads;
+    int block_size = data->block_size;
+    
+    for (int i0 = 0; i0 < size; i0 += block_size) {
+        int imax = (i0 + block_size < size) ? i0 + block_size : size;
+        for (int j0 = thread_id * block_size; j0 < size; j0 += num_threads * block_size) {
+            int jmax = (j0 + block_size < size) ? j0 + block_size : size;
+            for (int k0 = 0; k0 < size; k0 += block_size) {
+                int kmax = (k0 + block_size < size) ? k0 + block_size : size;
+                for (int i = i0; i < imax; i++) {
+                    for (int k = k0; k < kmax; k++) {
+                        int aik = A[i][k];
+                        for (int j = j0; j < jmax; j++) {
+                            C[i][j] += aik * B[k][j];
+                        }
+                    }
+                }
+            }
+        }
+    }
+    pthread_exit(NULL);
+}
+
+// Multiplicación en paralelo con medición de tiempos
+void multiplyMatricesOptimized(int** A, int** B, int** C, int size, int num_threads, PerformanceStats* stats) {
+    pthread_t* threads = (pthread_t*)malloc(num_threads * sizeof(pthread_t));
+    ThreadData* thread_data = (ThreadData*)malloc(num_threads * sizeof(ThreadData));
+    if (threads == NULL || thread_data == NULL) {
+        fprintf(stderr, "Error: No se pudo asignar memoria para los hilos\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    int block_size = 32;
+    if (size > 1000) block_size = 64;
+    if (size > 2000) block_size = 128;
+    
+    struct timespec start_time, end_time;
+    struct rusage start_usage, end_usage;
+    
+    clock_gettime(CLOCK_MONOTONIC, &start_time);
+    getrusage(RUSAGE_SELF, &start_usage);
+    
+    for (int i = 0; i < num_threads; i++) {
+        thread_data[i].thread_id = i;
+        thread_data[i].num_threads = num_threads;
+        thread_data[i].A = A;
+        thread_data[i].B = B;
+        thread_data[i].C = C;
+        thread_data[i].size = size;
+        thread_data[i].block_size = block_size;
+        
+        if (pthread_create(&threads[i], NULL, multiplyMatricesThreadOptimized, (void*)&thread_data[i]) != 0) {
+            fprintf(stderr, "Error: No se pudo crear el hilo %d\n", i);
+            exit(EXIT_FAILURE);
+        }
+    }
+    for (int i = 0; i < num_threads; i++) pthread_join(threads[i], NULL);
+    
+    clock_gettime(CLOCK_MONOTONIC, &end_time);
+    getrusage(RUSAGE_SELF, &end_usage);
+    
+    stats->real_time = (end_time.tv_sec - start_time.tv_sec) + 
+                       (end_time.tv_nsec - start_time.tv_nsec) / 1e9;
+    stats->user_time = timeval_to_seconds(end_usage.ru_utime) - timeval_to_seconds(start_usage.ru_utime);
+    stats->system_time = timeval_to_seconds(end_usage.ru_stime) - timeval_to_seconds(start_usage.ru_stime);
+    stats->total_cpu_time = stats->user_time + stats->system_time;
+    
+    stats->total_operations = (long long)size * size * (2 * size - 1);
+    stats->memory_used = (3 * size * size * sizeof(int)) / (1024 * 1024);
+    
+    if (stats->real_time > 1e-9) {
+        stats->gops = (stats->total_operations / stats->real_time) / 1e9;
+        stats->elements_per_second = (double)(size * size) / stats->real_time / 1e6;
+    } else {
+        stats->gops = 0.0;
+        stats->elements_per_second = 0.0;
+    }
+    
+    free(threads);
+    free(thread_data);
+}
+
+// Validación del resultado (muestra parcial)
+void validateResult(int** A, int** B, int** C, int size) {
+    long long expected, actual;
+    int correct = 1;
+    int step = (size > 1000) ? size / 10 : 1;
+    
+    for (int i = 0; i < size && correct; i += step) {
+        for (int j = 0; j < size && correct; j += step) {
+            expected = 0;
+            for (int k = 0; k < size; k++) {
+                expected += (long long)A[i][k] * B[k][j];
+            }
+            actual = C[i][j];
+            if (expected != actual) {
+                printf("Error de validación en C[%d][%d]: esperado %lld, obtenido %lld\n", 
+                       i, j, expected, actual);
+                correct = 0;
+            }
+        }
+    }
+    if (correct) printf("Validación: Correcta (muestra)\n");
+}
+
+// Obtener número de CPUs disponibles
+int getNumCPUs() {
+    long num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
+    if (num_cpus <= 0) return 1;
+    return (int)num_cpus;
+}
+
+// Escribir cabecera CSV
+void writeCSVHeader(const char* filename) {
+    FILE* file = fopen(filename, "w");
+    if (file == NULL) {
+        fprintf(stderr, "Error: No se pudo crear el archivo CSV %s\n", filename);
+        exit(EXIT_FAILURE);
+    }
+    fprintf(file, "size,iteration,real_time,user_time,system_time,total_cpu_time,"
+                  "total_operations,gops,elements_per_second_millions,memory_used_mb,num_threads,algorithm\n");
+    fclose(file);
+}
+
+// Guardar resultados en CSV
+void writeResultsToCSV(const char* filename, int size, int iteration, PerformanceStats stats, int num_threads, const char* algorithm) {
+    FILE* file = fopen(filename, "a");
+    if (file == NULL) {
+        fprintf(stderr, "Error: No se pudo abrir el archivo CSV para escritura\n");
+        return;
+    }
+    fprintf(file, "%d,%d,%.9f,%.9f,%.9f,%.9f,%lld,%.6f,%.6f,%zu,%d,%s\n",
+            size, iteration,
+            stats.real_time, stats.user_time, stats.system_time, stats.total_cpu_time,
+            stats.total_operations, stats.gops, stats.elements_per_second,
+            stats.memory_used, num_threads, algorithm);
+    fclose(file);
+}
+
+// Programa principal
+int main(int argc, char* argv[]) {
+    if (argc < 2 || argc > 4) {
+        fprintf(stderr, "Uso: %s <tamaño_matriz> [iteración] [num_threads]\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+    
+    int size = atoi(argv[1]);
+    if (size <= 0) {
+        fprintf(stderr, "Error: El tamaño de la matriz debe ser un número positivo\n");
+        return EXIT_FAILURE;
+    }
+    
+    int iteration = 1;
+    if (argc >= 3) iteration = atoi(argv[2]);
+    
+    int num_threads = getNumCPUs();
+    if (argc == 4) {
+        int requested_threads = atoi(argv[3]);
+        if (requested_threads > 0) num_threads = requested_threads;
+    }
+    
+    srand(time(NULL));
+    createDirectoryIfNotExists(DATA_DIR);
+    char* csvFilename = generateUniqueFilename(DATA_DIR);
+    writeCSVHeader(csvFilename);
+    
+    printf("Creando matrices de %dx%d...\n", size, size);
+    int** A = createMatrix(size);
+    int** B = createMatrix(size);
+    int** C = createResultMatrix(size);
+    
+    PerformanceStats stats = {0};
+    printf("Iniciando multiplicación de matrices con %d hilos...\n", num_threads);
+    multiplyMatricesOptimized(A, B, C, size, num_threads, &stats);
+    
+    writeResultsToCSV(csvFilename, size, iteration, stats, num_threads, "hilos_optimizado");
+    if (size <= 500) validateResult(A, B, C, size);
+    
+    printf("\n===== ESTADÍSTICAS DE RENDIMIENTO =====\n");
+    printf("Tamaño de la matriz: %d x %d\n", size, size);
+    printf("Número de hilos: %d\n", num_threads);
+    printf("Tiempo real (wall clock): %.9f segundos\n", stats.real_time);
+    printf("Tiempo de CPU: %.9f segundos (%.2f%% de utilización)\n", 
+           stats.total_cpu_time, (stats.total_cpu_time / stats.real_time) * 100);
+    printf("  └─ Tiempo de usuario: %.9f segundos (%.2f%%)\n", 
+           stats.user_time, (stats.user_time / stats.total_cpu_time) * 100);
+    printf("  └─ Tiempo de sistema: %.9f segundos (%.2f%%)\n", 
+           stats.system_time, (stats.system_time / stats.total_cpu_time) * 100);
+    printf("Total de operaciones: %lld\n", stats.total_operations);
+    printf("Rendimiento: %.6f GOPS\n", stats.gops);
+    printf("Elementos procesados por segundo: %.6f millones\n", stats.elements_per_second);
+    printf("Memoria utilizada: aproximadamente %zu MB\n", stats.memory_used);
+    printf("Datos guardados en: %s\n", csvFilename);
+    
+    freeMatrix(A, size);
+    freeMatrix(B, size);
+    freeMatrix(C, size);
+    free(csvFilename);
+    return EXIT_SUCCESS;
+}

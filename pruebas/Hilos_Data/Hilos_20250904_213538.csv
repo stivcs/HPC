@@ -1,0 +1,2 @@
+size,iteration,real_time,user_time,system_time,total_cpu_time,total_operations,gops,elements_per_second_millions,memory_used_mb,num_threads,algorithm
+2000,4,16.689489606,62.845561000,0.181957000,63.027518000,15996000000,0.958448,0.239672,45,4,hilos_optimizado

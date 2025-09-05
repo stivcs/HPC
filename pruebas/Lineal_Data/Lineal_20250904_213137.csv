@@ -1,0 +1,2 @@
+size,iteration,real_time,user_time,system_time,total_cpu_time,total_operations,gops,elements_per_second_millions,memory_used_mb,num_processes,algorithm
+1000,1,5.467727031,5.451115000,0.008153000,5.459268000,1999000000,0.365600,0.182891,11,1,lineal
