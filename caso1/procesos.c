@@ -13,11 +13,7 @@
 #include <signal.h>
 #include <errno.h>
 
-// Nombre del directorio para almacenamiento de datos
 #define DATA_DIR "Procesos_Data"
-
-// Archivo único donde se guardan las métricas
-#define CSV_FILENAME DATA_DIR "/tiempos.csv"
 
 // Solo guardamos el tiempo de usuario
 typedef struct {
@@ -129,23 +125,6 @@ void multiplyMatricesWithProcesses(int* A, int* B, int* C, int size, int num_pro
     free(pids);
 }
 
-// Validar resultados en matrices pequeñas
-void validateResult(int* A, int* B, int* C, int size) {
-    int correct = 1;
-    int step = (size > 1000) ? size / 10 : 1;
-    for (int i = 0; i < size && correct; i += step) {
-        for (int j = 0; j < size && correct; j += step) {
-            int expected = 0;
-            for (int k = 0; k < size; k++) expected += get_element(A, i, k, size) * get_element(B, k, j, size);
-            if (expected != get_element(C, i, j, size)) {
-                printf("Error en [%d][%d]\n", i, j);
-                correct = 0;
-            }
-        }
-    }
-    if (correct) printf("Validación correcta (muestra)\n");
-}
-
 // CPUs disponibles
 int getNumCPUs() {
     long n = sysconf(_SC_NPROCESSORS_ONLN);
@@ -187,6 +166,13 @@ int main(int argc, char* argv[]) {
     srand(time(NULL));
 
     if (!createDirectoryIfNotExists(DATA_DIR)) return EXIT_FAILURE;
+
+    // Archivo dinámico según procesos: Procesos_Data/tiempos_Xprocesos.csv
+    char filename[256];
+    snprintf(filename, sizeof(filename), DATA_DIR "/tiempos_%dprocesos.csv", num_processes);
+
+    writeCSVHeaderIfNeeded(filename);
+
     printf("Creando matrices de %dx%d...\n", size, size);
     int *A, *B, *C;
     int shmid_A = create_shared_matrix(size, &A);
@@ -196,26 +182,42 @@ int main(int argc, char* argv[]) {
     fillMatrix(A, size);
     fillMatrix(B, size);
     initResultMatrix(C, size);
+
     printf("Matrices creadas. Iniciando multiplicación con %d procesos...\n", num_processes);
+
     struct rusage start, end;
-    getrusage(RUSAGE_SELF, &start);
     getrusage(RUSAGE_CHILDREN, &start);
 
     multiplyMatricesWithProcesses(A, B, C, size, num_processes);
 
-    getrusage(RUSAGE_SELF, &end);
     getrusage(RUSAGE_CHILDREN, &end);
 
     PerformanceStats stats;
     stats.user_time = (timeval_to_seconds(end.ru_utime) - timeval_to_seconds(start.ru_utime));
 
-    writeCSVHeaderIfNeeded(CSV_FILENAME);
-    appendResults(CSV_FILENAME, size, num_processes, stats.user_time);
+    appendResults(filename, size, num_processes, stats.user_time);
 
-    if (size <= 500) validateResult(A, B, C, size);
+    if (size <= 500) {
+        printf("Validando resultados...\n");
+        // Validación ligera
+        int correct = 1;
+        for (int i = 0; i < size && correct; i++) {
+            for (int j = 0; j < size && correct; j++) {
+                int expected = 0;
+                for (int k = 0; k < size; k++) expected += get_element(A, i, k, size) * get_element(B, k, j, size);
+                if (expected != get_element(C, i, j, size)) {
+                    printf("Error en [%d][%d]\n", i, j);
+                    correct = 0;
+                }
+            }
+        }
+        if (correct) printf("Validación correcta\n");
+    }
 
+    printf("\n===== Resultados =====\n");
     printf("Matriz %d x %d con %d procesos\n", size, size, num_processes);
-    printf("Tiempo de usuario: %.6f s\n", stats.user_time);
+    printf("User time: %.6f s\n", stats.user_time);
+    printf("Guardado en: %s\n", filename);
 
     shmdt(A); shmdt(B); shmdt(C);
     shmctl(shmid_A, IPC_RMID, NULL);

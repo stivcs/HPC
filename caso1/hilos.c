@@ -10,7 +10,6 @@
 #include <errno.h>
 
 #define DATA_DIR "Hilos_Data"
-#define CSV_FILE DATA_DIR "/tiempos.csv"
 
 // Convierte timeval a segundos
 static inline double timeval_to_seconds(struct timeval tv) {
@@ -144,7 +143,12 @@ int main(int argc, char* argv[]) {
 
     srand(time(NULL));
     createDirectoryIfNotExists(DATA_DIR);
-    ensureCSVHeader(CSV_FILE);
+
+    // Crear nombre dinámico: Hilos_Data/tiempos_Xhilos.csv
+    char filename[256];
+    snprintf(filename, sizeof(filename), DATA_DIR "/tiempos_%dhilos.csv", num_threads);
+
+    ensureCSVHeader(filename);
 
     printf("Creando matrices de %dx%d...\n", size, size);
     int **A = createMatrix(size);
@@ -155,11 +159,12 @@ int main(int argc, char* argv[]) {
     PerformanceStats stats;
     multiplyMatrices(A, B, C, size, num_threads, &stats);
 
-    appendResult(CSV_FILE, size, num_threads, stats);
+    appendResult(filename, size, num_threads, stats);
 
     printf("\n===== Resultados =====\n");
     printf("Tamaño matriz: %d, Hilos: %d\n", size, num_threads);
     printf("User time: %.9f s\n", stats.user_time);
+    printf("Guardado en: %s\n", filename);
 
     freeMatrix(A, size);
     freeMatrix(B, size);
