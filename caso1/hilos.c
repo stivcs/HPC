@@ -17,10 +17,9 @@ static inline double timeval_to_seconds(struct timeval tv) {
     return (double)tv.tv_sec + (double)tv.tv_usec / 1e6;
 }
 
-// Estructura de estadísticas
+// Estructura de estadísticas (solo user time)
 typedef struct {
     double user_time;
-    double system_time;
 } PerformanceStats;
 
 // Datos que recibe cada hilo
@@ -110,7 +109,6 @@ void multiplyMatrices(int** A, int** B, int** C, int size, int num_threads, Perf
     getrusage(RUSAGE_SELF, &end);
 
     stats->user_time = timeval_to_seconds(end.ru_utime) - timeval_to_seconds(start.ru_utime);
-    stats->system_time = timeval_to_seconds(end.ru_stime) - timeval_to_seconds(start.ru_stime);
 
     free(threads);
     free(data);
@@ -118,20 +116,21 @@ void multiplyMatrices(int** A, int** B, int** C, int size, int num_threads, Perf
 
 // Escribir cabecera si no existe
 void ensureCSVHeader(const char* filename) {
-    FILE* f = fopen(filename, "a+");
-    if (!f) { perror("fopen"); exit(1); }
-    fseek(f, 0, SEEK_END);
-    if (ftell(f) == 0) {
-        fprintf(f, "matrix_size,num_threads,user_time,system_time\n");
+    FILE* f = fopen(filename, "r");
+    if (!f) {
+        // No existe, lo creo con cabecera
+        f = fopen(filename, "w");
+        if (!f) { perror("fopen"); exit(1); }
+        fprintf(f, "matrix_size,num_threads,user_time\n");
     }
-    fclose(f);
+    if (f) fclose(f);
 }
 
 // Guardar resultados
 void appendResult(const char* filename, int size, int num_threads, PerformanceStats stats) {
     FILE* f = fopen(filename, "a");
     if (!f) { perror("fopen"); exit(1); }
-    fprintf(f, "%d,%d,%.9f,%.9f\n", size, num_threads, stats.user_time, stats.system_time);
+    fprintf(f, "%d,%d,%.9f\n", size, num_threads, stats.user_time);
     fclose(f);
 }
 
@@ -147,17 +146,20 @@ int main(int argc, char* argv[]) {
     createDirectoryIfNotExists(DATA_DIR);
     ensureCSVHeader(CSV_FILE);
 
+    printf("Creando matrices de %dx%d...\n", size, size);
     int **A = createMatrix(size);
     int **B = createMatrix(size);
     int **C = createResultMatrix(size);
 
+    printf("Matrices creadas. Iniciando multiplicación con %d hilos...\n", num_threads);
     PerformanceStats stats;
     multiplyMatrices(A, B, C, size, num_threads, &stats);
 
     appendResult(CSV_FILE, size, num_threads, stats);
 
+    printf("\n===== Resultados =====\n");
     printf("Tamaño matriz: %d, Hilos: %d\n", size, num_threads);
-    printf("User time: %.9f s, System time: %.9f s\n", stats.user_time, stats.system_time);
+    printf("User time: %.9f s\n", stats.user_time);
 
     freeMatrix(A, size);
     freeMatrix(B, size);
