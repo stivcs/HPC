@@ -1,17 +1,17 @@
 import pandas as pd
-
+i = 24  # Número de hilos
 # Cargar datos
-df = pd.read_csv("Hilos_Data/tiempos_2hilos.csv")
+df = pd.read_csv(f"Procesos_Data/tiempos_{i}procesos.csv")
 
 # Como todos los num_threads son 2, los ignoramos
 # Creamos un índice que represente la corrida (grupo)
-df["corrida"] = df.groupby("matrix_size").cumcount() + 1
+df["Dimensiones"] = df.groupby("tamañoMatriz").cumcount() + 1
 
 # Pivotamos la tabla
-tabla = df.pivot(index="corrida", columns="matrix_size", values="user_time")
+tabla = df.pivot(index="Dimensiones", columns="tamañoMatriz", values="real_time")
 
 # Guardar a CSV
-tabla.to_csv("tabla_organizada.csv", index=True)
+tabla.to_csv(f"{i}procesos.csv", index=True)
 
-print("Tabla organizada guardada en 'tabla_organizada.csv'")
+print(f"Tabla organizada guardada en '{i}procesos.csv'")
 print(tabla.head())
