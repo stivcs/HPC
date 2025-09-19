@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
-#include <sys/resource.h>
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -16,9 +15,9 @@ static inline double timeval_to_seconds(struct timeval tv) {
     return (double)tv.tv_sec + (double)tv.tv_usec / 1e6;
 }
 
-// Estructura de estadísticas (solo user time)
+// Estructura de estadísticas (solo real_time)
 typedef struct {
-    double user_time;
+    double real_time;
 } PerformanceStats;
 
 // Datos que recibe cada hilo
@@ -91,8 +90,9 @@ void multiplyMatrices(int** A, int** B, int** C, int size, int num_threads, Perf
     pthread_t *threads = malloc(num_threads * sizeof(pthread_t));
     ThreadData *data = malloc(num_threads * sizeof(ThreadData));
 
-    struct rusage start, end;
-    getrusage(RUSAGE_SELF, &start);
+    struct timeval start_wall, end_wall;
+
+    gettimeofday(&start_wall, NULL);   // <-- inicio tiempo real
 
     for (int t = 0; t < num_threads; t++) {
         data[t].thread_id = t;
@@ -105,9 +105,9 @@ void multiplyMatrices(int** A, int** B, int** C, int size, int num_threads, Perf
     }
     for (int t = 0; t < num_threads; t++) pthread_join(threads[t], NULL);
 
-    getrusage(RUSAGE_SELF, &end);
+    gettimeofday(&end_wall, NULL);     // <-- fin tiempo real
 
-    stats->user_time = timeval_to_seconds(end.ru_utime) - timeval_to_seconds(start.ru_utime);
+    stats->real_time = timeval_to_seconds(end_wall) - timeval_to_seconds(start_wall);
 
     free(threads);
     free(data);
@@ -117,10 +117,9 @@ void multiplyMatrices(int** A, int** B, int** C, int size, int num_threads, Perf
 void ensureCSVHeader(const char* filename) {
     FILE* f = fopen(filename, "r");
     if (!f) {
-        // No existe, lo creo con cabecera
         f = fopen(filename, "w");
         if (!f) { perror("fopen"); exit(1); }
-        fprintf(f, "matrix_size,num_threads,user_time\n");
+        fprintf(f, "matrix_size,num_threads,real_time\n");
     }
     if (f) fclose(f);
 }
@@ -129,7 +128,7 @@ void ensureCSVHeader(const char* filename) {
 void appendResult(const char* filename, int size, int num_threads, PerformanceStats stats) {
     FILE* f = fopen(filename, "a");
     if (!f) { perror("fopen"); exit(1); }
-    fprintf(f, "%d,%d,%.9f\n", size, num_threads, stats.user_time);
+    fprintf(f, "%d,%d,%.9f\n", size, num_threads, stats.real_time);
     fclose(f);
 }
 
@@ -163,7 +162,7 @@ int main(int argc, char* argv[]) {
 
     printf("\n===== Resultados =====\n");
     printf("Tamaño matriz: %d, Hilos: %d\n", size, num_threads);
-    printf("User time: %.9f s\n", stats.user_time);
+    printf("Real time: %.9f s\n", stats.real_time);
     printf("Guardado en: %s\n", filename);
 
     freeMatrix(A, size);

@@ -15,9 +15,9 @@
 
 #define DATA_DIR "Procesos_Data"
 
-// Solo guardamos el tiempo de usuario
+// Nota: ahora guardamos solo real_time (tiempo de reloj)
 typedef struct {
-    double user_time;   // tiempo de CPU en modo usuario
+    double real_time;   // tiempo real (wall-clock)
 } PerformanceStats;
 
 // Estructura para pasar datos a cada proceso
@@ -68,7 +68,7 @@ void initResultMatrix(int* matrix, int size) {
     memset(matrix, 0, size * size * sizeof(int));
 }
 
-// Multiplicación por proceso
+// Multiplicación por proceso (bloques, versión que tenías)
 void multiplyMatricesProcessOptimized(ProcessData* data) {
     int* A = data->A_flat;
     int* B = data->B_flat;
@@ -97,7 +97,7 @@ void multiplyMatricesProcessOptimized(ProcessData* data) {
     }
 }
 
-// Multiplicar matrices con procesos
+// Multiplicar matrices con procesos (fork)
 void multiplyMatricesWithProcesses(int* A, int* B, int* C, int size, int num_processes) {
     pid_t* pids = (pid_t*)malloc(num_processes * sizeof(pid_t));
     if (!pids) { fprintf(stderr, "Error malloc\n"); exit(EXIT_FAILURE); }
@@ -118,7 +118,7 @@ void multiplyMatricesWithProcesses(int* A, int* B, int* C, int size, int num_pro
         else if (pids[i] == 0) {
             data.process_id = i;
             multiplyMatricesProcessOptimized(&data);
-            exit(EXIT_SUCCESS);
+            _exit(EXIT_SUCCESS); // salir sin ejecutar código de limpieza del padre
         }
     }
     for (int i = 0; i < num_processes; i++) waitpid(pids[i], NULL, 0);
@@ -131,25 +131,25 @@ int getNumCPUs() {
     return (n > 0) ? (int)n : 1;
 }
 
-// Convertir timeval a segundos
-double timeval_to_seconds(struct timeval tv) {
-    return tv.tv_sec + tv.tv_usec / 1e6;
+// Convertir timespec a segundos (double)
+double timespec_to_seconds(struct timespec ts) {
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
 
-// Escribir cabecera en CSV si está vacío
+// Escribir cabecera en CSV si está vacío (ahora real_time)
 void writeCSVHeaderIfNeeded(const char* filename) {
     FILE* f = fopen(filename, "a+");
     if (!f) return;
     fseek(f, 0, SEEK_END);
-    if (ftell(f) == 0) fprintf(f, "tamañoMatriz,#procesos,user_time\n");
+    if (ftell(f) == 0) fprintf(f, "tamañoMatriz,#procesos,real_time\n");
     fclose(f);
 }
 
-// Guardar resultados
-void appendResults(const char* filename, int size, int num_processes, double user_time) {
+// Guardar resultados (real_time)
+void appendResults(const char* filename, int size, int num_processes, double real_time) {
     FILE* f = fopen(filename, "a");
     if (!f) return;
-    fprintf(f, "%d,%d,%.9f\n", size, num_processes, user_time);
+    fprintf(f, "%d,%d,%.9f\n", size, num_processes, real_time);
     fclose(f);
 }
 
@@ -185,21 +185,26 @@ int main(int argc, char* argv[]) {
 
     printf("Matrices creadas. Iniciando multiplicación con %d procesos...\n", num_processes);
 
-    struct rusage start, end;
-    getrusage(RUSAGE_CHILDREN, &start);
+    // MEDICIÓN DE TIEMPO REAL: usar CLOCK_MONOTONIC
+    struct timespec start_ts, end_ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &start_ts) != 0) {
+        perror("clock_gettime inicio");
+        // aun así continuamos, pero la medicion será inválida
+    }
 
     multiplyMatricesWithProcesses(A, B, C, size, num_processes);
 
-    getrusage(RUSAGE_CHILDREN, &end);
+    if (clock_gettime(CLOCK_MONOTONIC, &end_ts) != 0) {
+        perror("clock_gettime fin");
+    }
 
     PerformanceStats stats;
-    stats.user_time = (timeval_to_seconds(end.ru_utime) - timeval_to_seconds(start.ru_utime));
+    stats.real_time = timespec_to_seconds(end_ts) - timespec_to_seconds(start_ts);
 
-    appendResults(filename, size, num_processes, stats.user_time);
+    appendResults(filename, size, num_processes, stats.real_time);
 
     if (size <= 500) {
         printf("Validando resultados...\n");
-        // Validación ligera
         int correct = 1;
         for (int i = 0; i < size && correct; i++) {
             for (int j = 0; j < size && correct; j++) {
@@ -216,9 +221,10 @@ int main(int argc, char* argv[]) {
 
     printf("\n===== Resultados =====\n");
     printf("Matriz %d x %d con %d procesos\n", size, size, num_processes);
-    printf("User time: %.6f s\n", stats.user_time);
+    printf("Real time: %.9f s\n", stats.real_time);
     printf("Guardado en: %s\n", filename);
 
+    // Desconectar y eliminar memoria compartida
     shmdt(A); shmdt(B); shmdt(C);
     shmctl(shmid_A, IPC_RMID, NULL);
     shmctl(shmid_B, IPC_RMID, NULL);
@@ -226,3 +232,4 @@ int main(int argc, char* argv[]) {
 
     return EXIT_SUCCESS;
 }
+

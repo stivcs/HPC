@@ -22,13 +22,13 @@ def run_and_time(cmd):
     return end - start
 
 # ================== SECUENCIAL ==================
-print("\n===== EJECUTANDO SECUENCIAL =====")
-for it in range(1, iterations + 1):
-    print(f"\n--- Iteración {it} ---")
-    for size in matrix_sizes:
-        cmd = f"{secuencial_exe} {size}"
-        elapsed = run_and_time(cmd)
-        print(f"[Secuencial] Tamaño {size} -> {elapsed:.4f} s")
+#print("\n===== EJECUTANDO SECUENCIAL =====")
+#for it in range(1, iterations + 1):
+#    print(f"\n--- Iteración {it} ---")
+#    for size in matrix_sizes:
+#        cmd = f"{secuencial_exe} {size}"
+#        elapsed = run_and_time(cmd)
+#        print(f"[Secuencial] Tamaño {size} -> {elapsed:.4f} s")
 
 # ================== HILOS ==================
 print("\n===== EJECUTANDO HILOS =====")
