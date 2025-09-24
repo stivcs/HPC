@@ -1,0 +1,10 @@
+modo,algoritmo,tamaño,workers,iteracion,tiempo
+Secuencial,Dartboard,100000,-,1,0.0037
+Secuencial,Dartboard,200000,-,1,0.0057
+Secuencial,Dartboard,300000,-,1,0.0061
+Secuencial,Dartboard,100000,-,2,0.0038
+Secuencial,Dartboard,200000,-,2,0.0051
+Secuencial,Dartboard,300000,-,2,0.0074
+Secuencial,Dartboard,100000,-,3,0.0067
+Secuencial,Dartboard,200000,-,3,0.0049
+Secuencial,Dartboard,300000,-,3,0.0061

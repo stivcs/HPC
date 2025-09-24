@@ -1,0 +1,10 @@
+modo,algoritmo,tamaño,workers,iteracion,tiempo
+Secuencial,Needles,100000,-,1,0.0078
+Secuencial,Needles,200000,-,1,0.0115
+Secuencial,Needles,300000,-,1,0.0157
+Secuencial,Needles,100000,-,2,0.0076
+Secuencial,Needles,200000,-,2,0.0117
+Secuencial,Needles,300000,-,2,0.0157
+Secuencial,Needles,100000,-,3,0.0074
+Secuencial,Needles,200000,-,3,0.0115
+Secuencial,Needles,300000,-,3,0.0159
