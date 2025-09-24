@@ -30,12 +30,14 @@ double buffonNeedle(long N) {
     double d = 1.0; // distancia fija
     long count = 0;
 
+    const double halfL = L / 2.0;
+
     for (long i = 0; i < N; i++) {
         double x = ((double)rand() / RAND_MAX) * d;
         double theta = ((double)rand() / RAND_MAX) * M_PI;
-
-        double x_left  = x - (L / 2.0) * sin(theta);
-        double x_right = x + (L / 2.0) * sin(theta);
+        double s = sin(theta);
+        double x_left  = x - halfL * s;
+        double x_right = x + halfL * s;
 
         if (x_left < 0.0 || x_right > d) {
             count++;

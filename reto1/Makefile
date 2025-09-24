@@ -6,14 +6,14 @@
 CC := gcc
 
 # Flags por implementación
-CFLAGS_SEQ   ?= -Wall -O2
-LDFLAGS_SEQ  ?= -lm
+CFLAGS_SEQ = -Wall -O3 -ffast-math -march=native -flto
+LDFLAGS_SEQ = -lm -flto
 
-CFLAGS_HILOS ?= -Wall -O2
-LDFLAGS_HILOS ?= -lm -pthread
+CFLAGS_HILOS = -Wall -O3 -ffast-math -march=native -flto
+LDFLAGS_HILOS = -lm -pthread -flto
 
-CFLAGS_PROC  ?= -Wall -O2
-LDFLAGS_PROC ?= -lm
+CFLAGS_PROC ?= -Wall -O3 -ffast-math -march=native -flto
+LDFLAGS_PROC ?= -lm -flto
 
 # Directorios
 SRC_DIR     := src

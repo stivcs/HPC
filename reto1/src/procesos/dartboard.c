@@ -57,12 +57,18 @@ void appendResults(const char* filename, long N, int num_procs, PerformanceStats
 // Cada proceso ejecuta su parte
 void dartboardProcess(long chunk, int* shm_hits, int proc_id) {
     long local_hits = 0;
-    unsigned int seed = time(NULL) ^ (proc_id * 7919);
 
+    // Semilla optimizada usando PID y CLOCK_MONOTONIC
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    unsigned int seed = (unsigned int)(ts.tv_nsec ^ getpid() ^ (proc_id * 7919));
+
+    double x, y, r2;
     for (long i = 0; i < chunk; i++) {
-        double x = (double)rand_r(&seed) / RAND_MAX;
-        double y = (double)rand_r(&seed) / RAND_MAX;
-        if (x * x + y * y <= 1.0) local_hits++;
+        x = (double)rand_r(&seed) / RAND_MAX;
+        y = (double)rand_r(&seed) / RAND_MAX;
+        r2 = x*x + y*y;
+        if (r2 <= 1.0) local_hits++;
     }
     shm_hits[proc_id] = local_hits;
     _exit(0);
@@ -83,7 +89,7 @@ int main(int argc, char* argv[]) {
     snprintf(filename, sizeof(filename), DATA_DIR "/results_%dprocesos.csv", num_procs);
     writeCSVHeaderIfNeeded(filename);
 
-    // Memoria compartida para acumular resultados
+    // Memoria compartida
     int shmid = shmget(IPC_PRIVATE, num_procs * sizeof(int), IPC_CREAT | 0666);
     if (shmid < 0) { perror("shmget"); exit(1); }
     int* shm_hits = (int*)shmat(shmid, NULL, 0);
@@ -123,7 +129,6 @@ int main(int argc, char* argv[]) {
     printf("Tiempo real: %.9f s\n", stats.real_time);
     printf("Guardado en: %s\n", filename);
 
-    // Liberar memoria compartida
     shmdt(shm_hits);
     shmctl(shmid, IPC_RMID, NULL);
 

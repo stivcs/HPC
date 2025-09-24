@@ -68,7 +68,8 @@ void buffonNeedleProcess(long chunk, int* shm_hits, int proc_id, double needle_l
     for (long i = 0; i < chunk; i++) {
         double y = ((double)rand_r(&seed) / RAND_MAX) * (dist / 2.0);
         double theta = ((double)rand_r(&seed) / RAND_MAX) * (M_PI / 2.0);
-        if (y <= (needle_len / 2.0) * sin(theta)) {
+        // Usamos sinf() de precisión simple en lugar de aproximación agresiva
+        if (y <= (needle_len / 2.0) * sinf((float)theta)) {
             local_hits++;
         }
     }
@@ -126,11 +127,7 @@ int main(int argc, char* argv[]) {
     for (int p = 0; p < num_procs; p++) total_hits += shm_hits[p];
 
     PerformanceStats stats;
-    if (total_hits > 0) {
-        stats.pi_est = (2.0 * needle_len * N) / (dist * total_hits);
-    } else {
-        stats.pi_est = 0.0;
-    }
+    stats.pi_est = (total_hits > 0) ? (2.0 * needle_len * N) / (dist * total_hits) : 0.0;
     stats.real_time = timespec_to_seconds(end) - timespec_to_seconds(start);
 
     appendResults(filename, N, num_procs, stats);
@@ -139,7 +136,6 @@ int main(int argc, char* argv[]) {
     printf("Tiempo real: %.9f s\n", stats.real_time);
     printf("Guardado en: %s\n", filename);
 
-    // Liberar memoria compartida
     shmdt(shm_hits);
     shmctl(shmid, IPC_RMID, NULL);
 

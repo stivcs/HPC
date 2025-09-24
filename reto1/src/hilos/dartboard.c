@@ -29,19 +29,20 @@ static inline double timeval_to_seconds(struct timeval tv) {
     return (double)tv.tv_sec + (double)tv.tv_usec / 1e6;
 }
 
-// Función que ejecuta cada hilo
+// Hilo optimizado
 void* dartboardThread(void* arg) {
     ThreadData* d = (ThreadData*)arg;
     long hits = 0;
-
     long chunk = d->N / d->num_threads;
-    unsigned int seed = time(NULL) ^ (d->thread_id * 7919);
+    unsigned int seed = (unsigned int)time(NULL) ^ (d->thread_id * 7919);
+    const double invRandMax = 1.0 / RAND_MAX;  // precalcular 1/RAND_MAX
 
     for (long i = 0; i < chunk; i++) {
-        double x = (double)rand_r(&seed) / RAND_MAX;
-        double y = (double)rand_r(&seed) / RAND_MAX;
-        if (x * x + y * y <= 1.0) hits++;
+        double x = rand_r(&seed) * invRandMax;
+        double y = rand_r(&seed) * invRandMax;
+        if ((x*x + y*y) <= 1.0) hits++;
     }
+
     d->local_hits = hits;
     return NULL;
 }
@@ -104,12 +105,15 @@ int main(int argc, char* argv[]) {
         data[t].local_hits = 0;
         pthread_create(&threads[t], NULL, dartboardThread, &data[t]);
     }
-    for (int t = 0; t < num_threads; t++) pthread_join(threads[t], NULL);
+
+    for (int t = 0; t < num_threads; t++)
+        pthread_join(threads[t], NULL);
 
     gettimeofday(&end, NULL);
 
     long total_hits = 0;
-    for (int t = 0; t < num_threads; t++) total_hits += data[t].local_hits;
+    for (int t = 0; t < num_threads; t++)
+        total_hits += data[t].local_hits;
 
     PerformanceStats stats;
     stats.pi_est = (4.0 * total_hits) / N;

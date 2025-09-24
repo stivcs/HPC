@@ -11,22 +11,31 @@
 
 #define DATA_DIR RESULTS_DIR "/secuencial/Secuencial_Dartboard_Data"
 
-
 typedef struct {
     double user_time;
     double pi_est;
 } PerformanceStats;
 
 double timeval_to_seconds(struct timeval tv) {
-    return tv.tv_sec + (tv.tv_usec / 1000000.0);
+    return tv.tv_sec + tv.tv_usec / 1000000.0;
 }
 
+// RNG rápido tipo xorshift
+static unsigned int rng_seed;
+static inline double fast_rand() {
+    rng_seed ^= rng_seed << 13;
+    rng_seed ^= rng_seed >> 17;
+    rng_seed ^= rng_seed << 5;
+    return (double)(rng_seed & 0x7FFFFFFF) / 0x7FFFFFFF;
+}
+
+// Función optimizada de Dartboard
 double dartboard(long N) {
     long count = 0;
     for (long i = 0; i < N; i++) {
-        double x = (double)rand() / RAND_MAX;
-        double y = (double)rand() / RAND_MAX;
-        if (x * x + y * y <= 1.0) count++;
+        double x = fast_rand();
+        double y = fast_rand();
+        if (x*x + y*y <= 1.0) count++;
     }
     return (4.0 * count) / N;
 }
@@ -69,7 +78,7 @@ int main(int argc, char* argv[]) {
     }
 
     long N = atol(argv[1]);
-    srand(time(NULL));
+    rng_seed = (unsigned int)time(NULL);
 
     createDirectoryIfNotExists(DATA_DIR);
     char* csvFilename = generateFilename(DATA_DIR);
