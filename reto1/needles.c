@@ -4,26 +4,31 @@
 #include <math.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <sys/stat.h>
 
-// Definir M_PI si no está definido
+#define DATA_DIR "Secuencial_Needles_Data"
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
-// Convierte timeval a segundos
+typedef struct {
+    double user_time;
+    double pi_est;
+} PerformanceStats;
+
 double timeval_to_seconds(struct timeval tv) {
     return tv.tv_sec + (tv.tv_usec / 1000000.0);
 }
 
-// Simulación Buffon's Needle
 double buffonNeedle(long N) {
-    double L = 1.0;    // longitud de la aguja fija
-    double d = 1.0;    // distancia entre líneas fija
+    double L = 1.0; // longitud fija
+    double d = 1.0; // distancia fija
     long count = 0;
 
     for (long i = 0; i < N; i++) {
-        double x = ((double)rand() / RAND_MAX) * d;        // posición del centro
-        double theta = ((double)rand() / RAND_MAX) * M_PI; // ángulo con la vertical
+        double x = ((double)rand() / RAND_MAX) * d;
+        double theta = ((double)rand() / RAND_MAX) * M_PI;
 
         double x_left  = x - (L / 2.0) * sin(theta);
         double x_right = x + (L / 2.0) * sin(theta);
@@ -34,28 +39,68 @@ double buffonNeedle(long N) {
     }
 
     if (count == 0) return 0.0;
-    return (2.0 * L * N) / (d * count); // estimación de pi
+    return (2.0 * L * N) / (d * count);
 }
 
-int main(int argc, char *argv[]) {
+void createDirectoryIfNotExists(const char* dirPath) {
+    struct stat st = {0};
+    if (stat(dirPath, &st) == -1) {
+        if (mkdir(dirPath, 0700) != 0) {
+            fprintf(stderr, "Error: no se pudo crear el directorio %s\n", dirPath);
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
+char* generateFilename(const char* dirPath) {
+    char* filename = (char*)malloc(256);
+    sprintf(filename, "%s/Needles_Results.csv", dirPath);
+    return filename;
+}
+
+void writeCSVHeaderIfNotExists(const char* filename) {
+    struct stat st;
+    if (stat(filename, &st) != 0) {
+        FILE* file = fopen(filename, "w");
+        fprintf(file, "N,pi_est,user_time\n");
+        fclose(file);
+    }
+}
+
+void writeResultsToCSV(const char* filename, long N, PerformanceStats stats) {
+    FILE* file = fopen(filename, "a");
+    fprintf(file, "%ld,%.9f,%.9f\n", N, stats.pi_est, stats.user_time);
+    fclose(file);
+}
+
+int main(int argc, char* argv[]) {
     if (argc != 2) {
-        printf("Uso: %s <num_agujas>\n", argv[0]);
-        return 1;
+        fprintf(stderr, "Uso: %s <num_agujas>\n", argv[0]);
+        return EXIT_FAILURE;
     }
 
     long N = atol(argv[1]);
     srand(time(NULL));
 
+    createDirectoryIfNotExists(DATA_DIR);
+    char* csvFilename = generateFilename(DATA_DIR);
+    writeCSVHeaderIfNotExists(csvFilename);
+
+    PerformanceStats stats = {0};
+    printf("Iniciando simulación de Buffon's Needle...\n");
     struct rusage start_usage, end_usage;
     getrusage(RUSAGE_SELF, &start_usage);
 
-    double pi_est = buffonNeedle(N);
+    stats.pi_est = buffonNeedle(N);
 
     getrusage(RUSAGE_SELF, &end_usage);
-    double user_time = timeval_to_seconds(end_usage.ru_utime) - timeval_to_seconds(start_usage.ru_utime);
+    stats.user_time = timeval_to_seconds(end_usage.ru_utime) - timeval_to_seconds(start_usage.ru_utime);
 
-    printf("PI aproximado (Buffon's Needle): %f\n", pi_est);
-    printf("Tiempo de usuario: %.9f segundos\n", user_time);
+    writeResultsToCSV(csvFilename, N, stats);
 
-    return 0;
+    printf("PI aproximado (Buffon's Needle): %.9f\n", stats.pi_est);
+    printf("Tiempo de usuario: %.9f segundos\n", stats.user_time);
+
+    free(csvFilename);
+    return EXIT_SUCCESS;
 }
