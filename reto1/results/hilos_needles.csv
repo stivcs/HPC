@@ -1,0 +1,9 @@
+modo,algoritmo,tamaño,workers,iteracion,tiempo
+Hilos,Needles,400000,2,1,0.0578
+Hilos,Needles,600000,2,1,0.0291
+Hilos,Needles,400000,4,1,0.0342
+Hilos,Needles,600000,4,1,0.0375
+Hilos,Needles,400000,8,1,0.0198
+Hilos,Needles,600000,8,1,0.0255
+Hilos,Needles,400000,12,1,0.0259
+Hilos,Needles,600000,12,1,0.0290

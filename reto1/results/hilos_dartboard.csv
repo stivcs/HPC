@@ -1,0 +1,9 @@
+modo,algoritmo,tamaño,workers,iteracion,tiempo
+Hilos,Dartboard,400000,2,1,0.0139
+Hilos,Dartboard,600000,2,1,0.0266
+Hilos,Dartboard,400000,4,1,0.0148
+Hilos,Dartboard,600000,4,1,0.0294
+Hilos,Dartboard,400000,8,1,0.0791
+Hilos,Dartboard,600000,8,1,0.0297
+Hilos,Dartboard,400000,12,1,0.0248
+Hilos,Dartboard,600000,12,1,0.0553

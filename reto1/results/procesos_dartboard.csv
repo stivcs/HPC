@@ -1,0 +1,9 @@
+modo,algoritmo,tamaño,workers,iteracion,tiempo
+Procesos,Dartboard,400000,2,1,0.0131
+Procesos,Dartboard,600000,2,1,0.0211
+Procesos,Dartboard,400000,4,1,0.0226
+Procesos,Dartboard,600000,4,1,0.0240
+Procesos,Dartboard,400000,8,1,0.0242
+Procesos,Dartboard,600000,8,1,0.0251
+Procesos,Dartboard,400000,12,1,0.0128
+Procesos,Dartboard,600000,12,1,0.0114

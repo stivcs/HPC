@@ -1,0 +1,9 @@
+modo,algoritmo,tamaño,workers,iteracion,tiempo
+Procesos,Needles,400000,2,1,0.0161
+Procesos,Needles,600000,2,1,0.0205
+Procesos,Needles,400000,4,1,0.0210
+Procesos,Needles,600000,4,1,0.0245
+Procesos,Needles,400000,8,1,0.0154
+Procesos,Needles,600000,8,1,0.0186
+Procesos,Needles,400000,12,1,0.0238
+Procesos,Needles,600000,12,1,0.0196
