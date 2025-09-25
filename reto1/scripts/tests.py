@@ -4,9 +4,10 @@ import os
 import csv
 
 # ================== CONFIG ==================
-matrix_sizes = [100000, 200000, 300000]
+#crece logaritmicamente 1.5 desde 100000 
+matrix_sizes = [100000,150000,225000,337500,506250,759375,1139062,1708593,2562889,3844333,5766499,8649748,12974622,19461933, 29192899]
 workers = [2, 4, 8, 12]
-iterations = 3
+iterations = 2
 
 # Carpetas
 BIN_DIR = "bin"
