@@ -131,3 +131,7 @@ verify: all
 tablas: all
 	@echo "Creando tablas con scripts/tablas.py..."
 	@python3 $(SCRIPTS_DIR)/tablas.py
+
+graficas: all
+	@echo "Creando graficas con scripts/graficas.py..."
+	@python3 $(SCRIPTS_DIR)/graficas.py
