@@ -135,3 +135,7 @@ tablas: all
 graficas: all
 	@echo "Creando graficas con scripts/graficas.py..."
 	@python3 $(SCRIPTS_DIR)/graficas.py
+
+speedup: all
+	@echo "Creando graficas de speedup con scripts/speedup.py..."
+	@python3 $(SCRIPTS_DIR)/speedup.py
