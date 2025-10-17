@@ -186,11 +186,23 @@ tablas:
 	@echo "==========================================="
 	python3 "$(SCRIPTS_DIR)/tablas.py"
 
+perfilado:
+	@echo "==========================================="
+	@echo "Ejecutando tablas para perfilado de código"
+	@echo "==========================================="
+	python3 "$(SCRIPTS_DIR)/perfilado.py"
+
 graficas:
 	@echo "==========================================="
 	@echo "Ejecutando graficas"
 	@echo "==========================================="
 	python3 "$(SCRIPTS_DIR)/graficas.py"
+
+graficasP:
+	@echo "==========================================="
+	@echo "Ejecutando graficas de perfilado"
+	@echo "==========================================="
+	python3 "$(SCRIPTS_DIR)/graficasPerfilado.py"
 
 pruebas:
 	python3 "$(SCRIPTS_DIR)/pruebas.py"
