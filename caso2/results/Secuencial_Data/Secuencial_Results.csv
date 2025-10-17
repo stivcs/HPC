@@ -1,2 +1,2 @@
-size,user_time
-3000,6.912258000
+matrix_size,real_time_sec,user_time_sec,system_time_sec,total_cpu_time_sec,total_operations,performance_gops,elements_per_second_million,memory_used_mb,algorithm
+1000,0.153906577,0.150472000,0.000000000,0.150472000,1999000000,12.988399,6.497448,13,Secuencial
