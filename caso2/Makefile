@@ -186,6 +186,12 @@ tablas:
 	@echo "==========================================="
 	python3 "$(SCRIPTS_DIR)/tablas.py"
 
+graficas:
+	@echo "==========================================="
+	@echo "Ejecutando graficas"
+	@echo "==========================================="
+	python3 "$(SCRIPTS_DIR)/graficas.py"
+
 pruebas:
 	python3 "$(SCRIPTS_DIR)/pruebas.py"
 
