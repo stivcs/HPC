@@ -180,6 +180,15 @@ test:
 	@echo "==========================================="
 	python3 "$(SCRIPTS_DIR)/test.py"
 
+tablas:
+	@echo "==========================================="
+	@echo "Ejecutando tablas para tamaños específicos de matriz"
+	@echo "==========================================="
+	python3 "$(SCRIPTS_DIR)/tablas.py"
+
+pruebas:
+	python3 "$(SCRIPTS_DIR)/pruebas.py"
+
 # ==============================
 #   UTILIDADES
 # ==============================
