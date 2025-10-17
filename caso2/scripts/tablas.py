@@ -24,36 +24,57 @@ for name, path in files.items():
 
     # Detectar si es OpenMP o Secuencial
     if "size" in df.columns:  # formato OpenMP
-        df = df[["size", "real_time"]].rename(columns={"size": "matrix_size", "real_time": "real_time_sec"})
+        tipo = "openmp"
+        df = df[["size", "threads", "real_time"]].rename(columns={
+            "size": "matrix_size",
+            "real_time": "real_time_sec"
+        })
     else:
+        tipo = "secuencial"
         df = df[["matrix_size", "real_time_sec"]]
 
-    # Ordenar por tamaño
+    # Ordenar
     df = df.sort_values(by="matrix_size")
 
-    # Agrupar por tamaño de matriz
-    grupos = df.groupby("matrix_size")
+    if tipo == "openmp":
+        # Agrupar por cantidad de hilos
+        for threads, grupo_hilos in df.groupby("threads"):
+            grupos = grupo_hilos.groupby("matrix_size")
 
-    # Crear DataFrame final (iteraciones como filas, tamaños como columnas)
-    resultados = pd.DataFrame()
+            # Crear tabla final
+            resultados = pd.DataFrame()
+            sizes = sorted(grupos.groups.keys())
+            max_iters = max(len(grupos.get_group(size)) for size in sizes)
+            resultados["iteracion"] = range(1, max_iters + 1)
 
-    # Obtener todas las claves (tamaños de matriz)
-    sizes = sorted(grupos.groups.keys())
+            for size in sizes:
+                tiempos = grupos.get_group(size)["real_time_sec"].reset_index(drop=True)
+                while len(tiempos) < max_iters:
+                    tiempos.loc[len(tiempos)] = None
+                resultados[str(size)] = tiempos
 
-    # Construir la tabla: una columna "iteracion" y luego una columna por tamaño
-    max_iters = max(len(grupos.get_group(size)) for size in sizes)
-    resultados["iteracion"] = range(1, max_iters + 1)
+            # Guardar una tabla por cantidad de hilos
+            output_path = os.path.join(tablas_path, f"{name}_hilos_{threads}.csv")
+            resultados.to_csv(output_path, index=False)
+            print(f"✅ Tabla OpenMP creada: {output_path}")
 
-    for size in sizes:
-        tiempos = grupos.get_group(size)["real_time_sec"].reset_index(drop=True)
-        # Rellenar con NaN si hay menos iteraciones
-        while len(tiempos) < max_iters:
-            tiempos.loc[len(tiempos)] = None
-        resultados[str(size)] = tiempos
+    else:
+        # Caso secuencial normal
+        grupos = df.groupby("matrix_size")
+        resultados = pd.DataFrame()
+        sizes = sorted(grupos.groups.keys())
+        max_iters = max(len(grupos.get_group(size)) for size in sizes)
+        resultados["iteracion"] = range(1, max_iters + 1)
 
-    # Guardar tabla resultante
-    output_path = os.path.join(tablas_path, f"{name}_tabla.csv")
-    resultados.to_csv(output_path, index=False)
-    print(f"✅ Tabla creada: {output_path}")
+        for size in sizes:
+            tiempos = grupos.get_group(size)["real_time_sec"].reset_index(drop=True)
+            while len(tiempos) < max_iters:
+                tiempos.loc[len(tiempos)] = None
+            resultados[str(size)] = tiempos
+
+        output_path = os.path.join(tablas_path, f"{name}_tabla.csv")
+        resultados.to_csv(output_path, index=False)
+        print(f"✅ Tabla Secuencial creada: {output_path}")
 
 print("\n🎯 Tablas generadas correctamente en 'results/tablas'")
+
