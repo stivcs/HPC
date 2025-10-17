@@ -1,0 +1,8 @@
+Procesador: AMD Ryzen 5 5500U
+Cantidad de núcleos: 6
+Cantidad de hilos: 12
+Frecuencia base: ~2.1 GHz (nominal U-series)
+Frecuencia turbo máxima: 4.06 GHz
+RAM: 16 GB DDR4 @ 3200 MT/s
+SSD: RPITJ256MEE1OWX NVMe 256 GB
+Sistema operativo: Arch Linux x86_64
