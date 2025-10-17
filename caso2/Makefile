@@ -7,40 +7,39 @@
 #     openmp/matrixOpenMp.c
 #   bin/
 #   results/
+#   scripts/verify.py
 #
 # Uso:
 #   make all
 #   make run prog=secuencial N=512
-#   make run prog=openmp_opt N=512 threads=4
-#   make clean
+#   make verify prog=openmp_opt N=128 threads=4
 # ==========================================
 
 # Compilador
 CC := gcc
 
 # ==============================
-#   Flags de compilación
+#   FLAGS DE COMPILACIÓN
 # ==============================
-CFLAGS_BASE := -Wall -O3 -ffast-math -march=native -flto
-LDFLAGS_BASE := -lm -flto
 
-# Versión secuencial
-CFLAGS_SEQ  := $(CFLAGS_BASE)
-LDFLAGS_SEQ := $(LDFLAGS_BASE)
+# --- Versión Secuencial ---
+CFLAGS_SEQ  := -Wall -O3 -funroll-loops -ffast-math -march=native -pipe
+LDFLAGS_SEQ := -lm
 
-# Versión OpenMP
-CFLAGS_OMP  := $(CFLAGS_BASE) -fopenmp -funroll-loops
-LDFLAGS_OMP := $(LDFLAGS_BASE) -fopenmp
+# --- Versión OpenMP ---
+CFLAGS_OMP  := -Wall -O3 -funroll-loops -ffast-math -march=native -fopenmp -mtune=native
+LDFLAGS_OMP := -lm -fopenmp
 
 # ==============================
-#   Directorios
+#   DIRECTORIOS
 # ==============================
 SRC_DIR     := src
 BIN_DIR     := bin
 RESULTS_DIR := $(abspath results)
+SCRIPTS_DIR := scripts
 
 # ==============================
-#   Archivos fuente y binarios
+#   ARCHIVOS FUENTE Y BINARIOS
 # ==============================
 SRC_SEQ := $(SRC_DIR)/secuencial/secuencial.c
 SRC_OMP := $(SRC_DIR)/openmp/matrixOpenMp.c
@@ -49,15 +48,15 @@ BIN_SEQ := $(BIN_DIR)/secuencial
 BIN_OMP := $(BIN_DIR)/openmp_opt
 
 # ==============================
-#   Reglas principales
+#   REGLAS PRINCIPALES
 # ==============================
-.PHONY: all clean run list help dirs
+.PHONY: all clean run list help dirs verify
 
-# Compila ambas versiones
 all: dirs $(BIN_SEQ) $(BIN_OMP)
+	@echo "[OK] Compilación completa."
 
 # ==============================
-#   Creación de directorios
+#   CREACIÓN DE DIRECTORIOS
 # ==============================
 dirs:
 	@echo "Verificando estructura de carpetas..."
@@ -65,74 +64,126 @@ dirs:
 	@mkdir -p "$(RESULTS_DIR)"
 	@mkdir -p "$(SRC_DIR)/secuencial"
 	@mkdir -p "$(SRC_DIR)/openmp"
-	@echo "[OK] Directorios verificados o creados"
+	@echo "[OK] Directorios verificados o creados."
 
-# ---- Compilación de versión secuencial ----
+# ==============================
+#   COMPILACIÓN
+# ==============================
+
+# --- Compilación Secuencial ---
 $(BIN_SEQ): $(SRC_SEQ)
-	@echo "Compilando versión secuencial..."
-	$(CC) $(CFLAGS_SEQ) -DRESULTS_DIR=\"$(abspath $(RESULTS_DIR))\" $< -o "$@" $(LDFLAGS_SEQ)
-	@echo "[OK] Generado: $@"
+	@echo "Compilando versión Secuencial..."
+	$(CC) $(CFLAGS_SEQ) -DRESULTS_DIR=\"$(RESULTS_DIR)\" $< -o "$@" $(LDFLAGS_SEQ)
+	@echo "[OK] Binario generado: $@"
 
-
-# ---- Compilación de versión OpenMP ----
+# --- Compilación OpenMP ---
 $(BIN_OMP): $(SRC_OMP)
 	@echo "Compilando versión OpenMP..."
-	$(CC) $(CFLAGS_OMP) "-DRESULTS_DIR=\"$(abspath $(RESULTS_DIR))\"" $< -o "$@" $(LDFLAGS_OMP)
-	@echo "[OK] Generado: $@"
+	$(CC) $(CFLAGS_OMP) -DRESULTS_DIR=\"$(RESULTS_DIR)\" $< -o "$@" $(LDFLAGS_OMP)
+	@echo "[OK] Binario generado: $@"
 
 # ==============================
-#   Utilidades
+#   LIMPIEZA
 # ==============================
-
-# Limpia los binarios generados y los resultados
 clean:
-	rm -rf "$(BIN_DIR)"
-	rm -rf "$(RESULTS_DIR)"
-	@echo "[Limpieza completa de binarios y resultados]"
+	@echo "Eliminando binarios y resultados..."
+	@rm -rf "$(BIN_DIR)" "$(RESULTS_DIR)"
+	@echo "[Limpieza completa]"
 
-# Ejecutar con parámetros desde la línea de comandos
+# ==============================
+#   EJECUCIÓN
+# ==============================
 # Ejemplos:
 #   make run prog=secuencial N=512
+#   make run prog=secuencial N=256 args=save
 #   make run prog=openmp_opt N=512 threads=4
+# ==============================
 run:
 	@if [ -z "$(prog)" ]; then \
 		echo "Error: falta 'prog'. Ejemplo: make run prog=secuencial N=512"; \
-	else \
-		case $(prog) in \
-			secuencial) \
-				if [ -z "$(N)" ]; then echo "Error: falta N"; exit 1; fi; \
-				mkdir -p "$(RESULTS_DIR)/Secuencial_Data"; \
-				"$(BIN_DIR)/$(prog)" $(N); \
-				;; \
-			openmp_opt) \
-				if [ -z "$(N)" ] || [ -z "$(threads)" ]; then \
-					echo "Error: falta N o threads. Ejemplo: make run prog=openmp_opt N=512 threads=4"; exit 1; fi; \
-				mkdir -p "$(RESULTS_DIR)/OpenMp_Data"; \
-				"$(BIN_DIR)/$(prog)" $(N) $(threads); \
-				;; \
-			*) \
-				echo "Error: programa no reconocido: $(prog)"; \
-				;; \
-		esac; \
-	fi
+		exit 1; \
+	fi; \
+	case "$(prog)" in \
+		secuencial) \
+			if [ -z "$(N)" ]; then echo "Error: falta N"; exit 1; fi; \
+			mkdir -p "$(RESULTS_DIR)/Secuencial_Data"; \
+			if [ -n "$(args)" ]; then \
+				"$(BIN_DIR)/secuencial" $(N) $(args); \
+			else \
+				"$(BIN_DIR)/secuencial" $(N); \
+			fi; \
+			;; \
+		openmp_opt) \
+			if [ -z "$(N)" ] || [ -z "$(threads)" ]; then \
+				echo "Error: falta N o threads. Ejemplo: make run prog=openmp_opt N=512 threads=4"; \
+				exit 1; \
+			fi; \
+			mkdir -p "$(RESULTS_DIR)/OpenMp_Data"; \
+			if [ -n "$(args)" ]; then \
+				"$(BIN_DIR)/openmp_opt" $(N) $(threads) $(args); \
+			else \
+				"$(BIN_DIR)/openmp_opt" $(N) $(threads); \
+			fi; \
+			;; \
+		*) \
+			echo "Error: programa no reconocido: $(prog)"; \
+			exit 1; \
+			;; \
+	esac
 
-# Lista los binarios generados
+# ==============================
+#   VERIFICACIÓN AUTOMÁTICA
+# ==============================
+# Ejecuta el binario con "save" y llama a scripts/verify.py
+# Ejemplo:
+#   make verify prog=secuencial N=64
+#   make verify prog=openmp_opt N=128 threads=4
+# ==============================
+verify:
+	@if [ -z "$(prog)" ]; then \
+		echo "Error: falta 'prog'. Ejemplo: make verify prog=secuencial N=64"; \
+		exit 1; \
+	fi; \
+	echo "🔧 Generando matrices para verificación..."; \
+	case "$(prog)" in \
+		secuencial) \
+			N_VAL=$${N:-64}; \
+			mkdir -p "$(RESULTS_DIR)/Secuencial_Data"; \
+			"$(BIN_DIR)/secuencial" $$N_VAL save; \
+			echo "🧠 Verificando resultados (Secuencial)..."; \
+			python3 "$(SCRIPTS_DIR)/verify.py" secuencial; \
+			;; \
+		openmp_opt) \
+			N_VAL=$${N:-64}; \
+			T_VAL=$${threads:-4}; \
+			mkdir -p "$(RESULTS_DIR)/OpenMp_Data"; \
+			"$(BIN_DIR)/openmp_opt" $$N_VAL $$T_VAL save; \
+			echo "🧠 Verificando resultados (OpenMP)..."; \
+			python3 "$(SCRIPTS_DIR)/verify.py" openmp; \
+			;; \
+		*) \
+			echo "Error: programa no reconocido. Usa prog=secuencial u openmp_opt."; \
+			exit 1; \
+			;; \
+	esac
+
+# ==============================
+#   UTILIDADES
+# ==============================
 list:
-	@echo "Binarios disponibles:"; \
-	for b in $(BIN_SEQ) $(BIN_OMP); do \
+	@echo "Binarios disponibles:"
+	@for b in $(BIN_SEQ) $(BIN_OMP); do \
 		if [ -f $$b ]; then echo "  $$(basename $$b)"; fi; \
 	done
 
-# Ayuda general
 help:
 	@echo "Makefile - Proyecto HPC: Multiplicación de Matrices"
 	@echo ""
 	@echo "Comandos principales:"
 	@echo "  make all               -> Compila las versiones secuencial y OpenMP"
-	@echo "  make clean             -> Elimina los binarios y resultados"
-	@echo "  make list              -> Lista los binarios disponibles"
-	@echo "  make dirs              -> Crea las carpetas necesarias"
-	@echo ""
-	@echo "Ejecución de ejemplos:"
 	@echo "  make run prog=secuencial N=512"
 	@echo "  make run prog=openmp_opt N=512 threads=4"
+	@echo "  make verify prog=secuencial N=64"
+	@echo "  make verify prog=openmp_opt N=128 threads=4"
+	@echo "  make clean             -> Elimina los binarios y resultados"
+	@echo "  make list              -> Lista los binarios disponibles"
