@@ -1,2 +1,0 @@
-size,threads,real_time,user_time,system_time,total_cpu_time,total_operations,gops,elements_per_second_millions,memory_used_mb,algorithm
-1000,4,0.047123707,0.183949000,0.000883000,0.184832000,1999000000,42.420262,21.220741,13,openmp

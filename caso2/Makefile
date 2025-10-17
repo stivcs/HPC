@@ -168,6 +168,19 @@ verify:
 	esac
 
 # ==============================
+#   EJECUCIÓN DE TEST AUTOMATIZADOS (TAMAÑOS ESPECÍFICOS)
+# ==============================
+# Uso:
+#   make test
+# Ejecuta todos los tamaños definidos en test_suite_auto.py con 10 repeticiones cada uno
+test:
+	@echo "==========================================="
+	@echo "Ejecutando test automatizado para tamaños específicos de matriz"
+	@echo "10 repeticiones por configuración, hilos OpenMP: 2,4,8,12"
+	@echo "==========================================="
+	python3 "$(SCRIPTS_DIR)/test.py"
+
+# ==============================
 #   UTILIDADES
 # ==============================
 list:
