@@ -29,7 +29,7 @@ matrix_sizes = [
     1330102642
 ]
 workers = [2, 4, 8, 12]
-iterations = 1
+iterations = 10
 
 # Carpetas base
 BIN_DIR = "bin"
