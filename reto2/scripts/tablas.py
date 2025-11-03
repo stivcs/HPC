@@ -1,61 +1,63 @@
 import os
 import pandas as pd
 
-RESULTS_DIR = "results"
-TABLES_DIR = os.path.join(RESULTS_DIR, "tablas")
+# ================== CONFIG ==================
+RESULTS_DIR = "results/openmp"
+TABLES_DIR = os.path.join("results", "tablas")
 os.makedirs(TABLES_DIR, exist_ok=True)
 
-def process_file(file_path, mode, metodo, file):
+def process_file(file_path, metodo):
     df = pd.read_csv(file_path)
 
     # Detectar columna de tiempos
-    if mode == "secuencial":
-        col_time = "user_time"
-    else:  # hilos o procesos
-        col_time = "real_time"
+    col_time = "real_time"
 
-    times = df[["N", col_time]]
+    # Obtener los hilos distintos
+    threads_list = sorted(df["threads"].unique())
+    print(f"\nProcesando {metodo}: {threads_list} hilos encontrados.")
 
-    # Agrupamos por N y recolectamos todas las iteraciones
-    grouped = times.groupby("N")[col_time].apply(list)
+    # Crear carpeta base para el método
+    out_base = os.path.join(TABLES_DIR, "openmp", metodo)
+    os.makedirs(out_base, exist_ok=True)
 
-    # Convertir a DataFrame (cada N una columna)
-    max_len = max(len(lst) for lst in grouped)
-    data = {}
-    for n, lst in grouped.items():
-        data[n] = lst + [None] * (max_len - len(lst))
+    # Generar un archivo separado por cada número de hilos
+    for t in threads_list:
+        df_thread = df[df["threads"] == t]
 
-    table = pd.DataFrame(data)
-    table.index = [f"iter{i+1}" for i in range(max_len)]
+        # Agrupar por tamaño de problema (size)
+        grouped = df_thread.groupby("size")[col_time].apply(list)
 
-    # Carpeta destino
-    out_dir = os.path.join(TABLES_DIR, metodo, mode)
-    os.makedirs(out_dir, exist_ok=True)
+        # Convertir a tabla (cada size una columna)
+        max_len = max(len(lst) for lst in grouped)
+        data = {}
+        for size, lst in grouped.items():
+            data[size] = lst + [None] * (max_len - len(lst))
 
-    # Nombre de salida
-    out_name = f"tabla_{mode}_{file}"
-    out_path = os.path.join(out_dir, out_name)
+        table = pd.DataFrame(data)
+        table.index = [f"iter{i+1}" for i in range(max_len)]
 
-    table.to_csv(out_path)
-    print(f"Guardado {out_path}")
+        # Crear carpeta destino por hilos
+        out_dir = os.path.join(out_base, f"{t}_threads")
+        os.makedirs(out_dir, exist_ok=True)
 
-# Recorremos carpetas de resultados
-for mode in ["secuencial", "hilos", "procesos"]:
-    mode_dir = os.path.join(RESULTS_DIR, mode)
-    if not os.path.isdir(mode_dir):
-        continue
+        # Nombre del archivo de salida
+        out_name = f"tabla_openmp_{metodo.lower()}_{t}hilos.csv"
+        out_path = os.path.join(out_dir, out_name)
 
-    for root, _, files in os.walk(mode_dir):
-        for file in files:
-            if file.endswith(".csv"):
-                file_path = os.path.join(root, file)
+        table.to_csv(out_path, index=True)
+        print(f"✅ Guardado {out_path}")
 
-                # Detectar método por el nombre de la carpeta o archivo
-                if "Dartboard" in root or "dartboard" in file.lower():
-                    metodo = "Dartboard"
-                elif "Needles" in root or "needles" in file.lower():
-                    metodo = "Needles"
-                else:
-                    metodo = "Otros"
+# ================== ARCHIVOS A PROCESAR ==================
+files = {
+    "Dartboard": os.path.join(RESULTS_DIR, "Dartboard_Data", "OpenMP_Results.csv"),
+    "Needles": os.path.join(RESULTS_DIR, "Needles_Data", "OpenMP_Results.csv"),
+}
 
-                process_file(file_path, mode, metodo, file)
+for metodo, path in files.items():
+    if os.path.exists(path):
+        process_file(path, metodo)
+    else:
+        print(f"⚠️ No se encontró el archivo: {path}")
+
+
+
