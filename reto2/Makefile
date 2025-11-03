@@ -153,6 +153,12 @@ speedup: all
 	@echo "Creando graficas de speedup con scripts/speedup.py..."
 	@python3 $(SCRIPTS_DIR)/speedup.py
 
+perfilado:
+	@echo "==========================================="
+	@echo "Ejecutando tablas para perfilado de código"
+	@echo "==========================================="
+	python3 "$(SCRIPTS_DIR)/perfilado.py"
+
 
 # ==============================
 #   PERFILADO AUTOMÁTICO OPENMP
