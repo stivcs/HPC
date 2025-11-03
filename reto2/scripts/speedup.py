@@ -103,7 +103,7 @@ def graficar_speedup(metodo, data_seq, data_otro, modo_otro):
 
     plt.xlabel("Tamaño N (Problema)")
     plt.ylabel("Speedup (T_sec / T_par)")
-    plt.title(f"{metodo}: Speedup {modo_otro.capitalize()} vs Secuencial")
+    plt.title(f"{metodo}: Speedup {modo_otro.capitalize()}")
     plt.legend()
     plt.grid(True, linestyle="--", alpha=0.6)
     plt.xscale('log') 
