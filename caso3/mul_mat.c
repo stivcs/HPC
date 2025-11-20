@@ -24,16 +24,6 @@ int* flattenMatrix(int** mat, int n) {
     return flat;
 }
 
-int** unflattenMatrix(int* flat, int n) {
-    int** mat = malloc(n * sizeof(int*));
-    for (int i = 0; i < n; i++) {
-        mat[i] = malloc(n * sizeof(int));
-        for (int j = 0; j < n; j++)
-            mat[i][j] = flat[i*n + j];
-    }
-    return mat;
-}
-
 void freeMatrix(int** mat, int n) {
     for (int i = 0; i < n; i++) free(mat[i]);
     free(mat);
@@ -82,7 +72,6 @@ int main(int argc, char* argv[]) {
         freeMatrix(B_mat, n);
     }
 
-    // Preparar sendcounts y desplazamientos para Scatterv
     int* sendcounts = malloc(size * sizeof(int));
     int* displs = malloc(size * sizeof(int));
     for (int i = 0; i < size; i++) {
@@ -91,7 +80,6 @@ int main(int argc, char* argv[]) {
         displs[i] = (i * rows_per_proc + (i < remainder ? i : remainder)) * n;
     }
 
-    // Distribuir filas de A y enviar B a todos
     MPI_Scatterv(A_flat, sendcounts, displs, MPI_INT,
                  local_A, local_rows*n, MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -100,7 +88,6 @@ int main(int argc, char* argv[]) {
     MPI_Barrier(MPI_COMM_WORLD);
     double start_time = MPI_Wtime();
 
-    // Multiplicación local
     for (int i = 0; i < local_rows; i++)
         for (int k = 0; k < n; k++)
             for (int j = 0; j < n; j++)
@@ -109,7 +96,6 @@ int main(int argc, char* argv[]) {
     MPI_Barrier(MPI_COMM_WORLD);
     double end_time = MPI_Wtime();
 
-    // Recolectar resultados en C_flat en el proceso 0
     if (rank == 0) C_flat = malloc(n * n * sizeof(int));
 
     MPI_Gatherv(local_C, local_rows*n, MPI_INT,
@@ -117,13 +103,22 @@ int main(int argc, char* argv[]) {
                 0, MPI_COMM_WORLD);
 
     if (rank == 0) {
-        printf("\n===== RESULTADOS MPI =====\n");
-        printf("Tamaño de la matriz: %d x %d\n", n, n);
-        printf("Tiempo real MPI: %.6f s\n", end_time - start_time);
+        double elapsed = end_time - start_time;
+        printf("\nTamaño: %d x %d\nTiempo MPI: %.6f s\n", n, n, elapsed);
 
-        // Opcional: puedes reconstruir la matriz completa
-        // int** C = unflattenMatrix(C_flat, n);
-        // freeMatrix(C, n);
+        // Guardar en CSV
+        char filename[64];
+        snprintf(filename, sizeof(filename), "mul_%d_procesos.csv", size);
+        FILE* f = fopen(filename, "w");
+        if (f) {
+            fprintf(f, "tamaño,tiempo\n");
+            fprintf(f, "%d,%.6f\n", n, elapsed);
+            fclose(f);
+            printf("Resultados guardados en: %s\n", filename);
+        } else {
+            fprintf(stderr, "Error al crear el archivo CSV\n");
+        }
+
         free(C_flat);
         free(A_flat);
     }
@@ -137,4 +132,3 @@ int main(int argc, char* argv[]) {
     MPI_Finalize();
     return EXIT_SUCCESS;
 }
-
