@@ -106,6 +106,8 @@ int main(int argc, char* argv[]) {
         double elapsed = end_time - start_time;
         printf("\nTamaño: %d x %d\nTiempo MPI: %.6f s\n", n, n, elapsed);
 
+        system("mkdir -p results");
+
         // Guardar en CSV
         char filename[64];
         snprintf(filename, sizeof(filename), "results/mul_%d_procesos.csv", size);
