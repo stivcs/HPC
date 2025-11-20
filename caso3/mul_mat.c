@@ -106,7 +106,10 @@ int main(int argc, char* argv[]) {
         double elapsed = end_time - start_time;
         printf("\nTamaño: %d x %d\nTiempo MPI: %.6f s\n", n, n, elapsed);
 
-        system("mkdir -p results");
+        int ret = system("mkdir -p results");
+        if (ret != 0) {
+            fprintf(stderr, "No se pudo crear la carpeta results\n");
+        }
 
         // Guardar en CSV
         char filename[64];
