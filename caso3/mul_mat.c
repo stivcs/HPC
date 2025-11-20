@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
 
         // Guardar en CSV
         char filename[64];
-        snprintf(filename, sizeof(filename), "mul_%d_procesos.csv", size);
+        snprintf(filename, sizeof(filename), "results/mul_%d_procesos.csv", size);
         FILE* f = fopen(filename, "w");
         if (f) {
             fprintf(f, "tamaño,tiempo\n");
