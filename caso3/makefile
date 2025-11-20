@@ -20,7 +20,11 @@ $(EXEC): mul_mat.c
 run:
 	mpiexec -n $(N) -host $(HOSTS) -oversubscribe ./$(EXEC) $(S)
 
+test:
+	python3 test.py
+
 clean:
-	rm -f $(EXEC) *.o *.csv
+	rm -f $(EXEC) *.o
+	rm -f results/*.csv
 
 .PHONY: all run clean

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <mpi.h>
 
@@ -114,9 +115,15 @@ int main(int argc, char* argv[]) {
         // Guardar en CSV
         char filename[64];
         snprintf(filename, sizeof(filename), "results/mul_%d_procesos.csv", size);
-        FILE* f = fopen(filename, "w");
+
+	struct stat buffer;
+	int file_exists = (stat(filename, &buffer) == 0);
+
+        FILE* f = fopen(filename, "a");
         if (f) {
-            fprintf(f, "tamaño,tiempo\n");
+            if (!file_exists){
+		fprintf(f, "tamaño,tiempo\n");
+	    }
             fprintf(f, "%d,%.6f\n", n, elapsed);
             fclose(f);
             printf("Resultados guardados en: %s\n", filename);
