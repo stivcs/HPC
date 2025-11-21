@@ -23,6 +23,9 @@ run:
 test:
 	python3 test.py
 
+tablas:
+	python3 tablas.py
+
 clean:
 	rm -f $(EXEC) *.o
 	rm -f results/*.csv
