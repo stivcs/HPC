@@ -26,7 +26,7 @@ run_mpi:
 	mpiexec -n 7 -host $(HOSTS) -oversubscribe ./src/$(MPI) 1000 100 0.3 50 results/test_mpi.csv
 
 test:
-	python3 test.py
+	python3 scripts/test.py
 
 clean:
 	rm -f src/$(SERIAL) src/$(MPI)
