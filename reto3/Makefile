@@ -1,35 +1,64 @@
-# Ejecutables
-SERIAL = traffic_serial
-MPI = traffic_mpi
-
-# Compilador C normal y MPI
+# Compiladores
 CC = gcc
 MPICC = mpicc
 
+# Flags
 CFLAGS = -O2
+MPIFLAGS = -O2
 
-# Hosts
+# Ejecutables
+SERIAL = traffic_serial
+MPIEXEC = traffic_mpi
+
+# Hosts del cluster
 HOSTS = wn1,wn2,wn3
 
-all: $(SERIAL) $(MPI)
+# Parámetros por defecto
+N = 10000
+STEPS = 5000
+DENSITY = 0.3
+PRINTFREQ = 50
+
+# Rutas de salida
+OUTDIR = results
+SERIAL_OUT = $(OUTDIR)/serial.csv
+MPI_OUT = $(OUTDIR)/mpi.csv
+
+all: dirs $(SERIAL) $(MPIEXEC)
+
+dirs:
+	mkdir -p $(OUTDIR)
 
 $(SERIAL): src/traffic_serial.c
-	$(CC) $(CFLAGS) $< -o src/$(SERIAL)
+	$(CC) $(CFLAGS) $< -o $(SERIAL)
 
-$(MPI): src/traffic_mpi.c
-	$(MPICC) $(CFLAGS) $< -o src/$(MPI)
+$(MPIEXEC): src/traffic_mpi.c
+	$(MPICC) $(MPIFLAGS) $< -o $(MPIEXEC)
 
-run_serial:
-	./src/$(SERIAL) 1000 100 0.3 50 results/test_serial.csv
+# -----------------------
+#   EJECUCIONES
+# -----------------------
 
-run_mpi:
-	mpiexec -n 7 -host $(HOSTS) -oversubscribe ./src/$(MPI) 1000 100 0.3 50 results/test_mpi.csv
+run-serial:
+	./$(SERIAL) $(N) $(STEPS) $(DENSITY) $(PRINTFREQ) $(SERIAL_OUT)
+
+run-mpi:
+	mpiexec -n 7 -host $(HOSTS) -oversubscribe ./$(MPIEXEC) \
+		$(N) $(STEPS) $(DENSITY) $(PRINTFREQ) $(MPI_OUT)
+
+# -----------------------
+#   TEST AUTOMÁTICO
+# -----------------------
 
 test:
 	python3 scripts/test.py
 
-clean:
-	rm -f src/$(SERIAL) src/$(MPI)
-	rm -f results/*.csv
+# -----------------------
+#   LIMPIEZA
+# -----------------------
 
-.PHONY: all run_serial run_mpi test clean
+clean:
+	rm -f $(SERIAL) $(MPIEXEC)
+	rm -rf $(OUTDIR)
+
+.PHONY: all dirs run-serial run-mpi test clean

@@ -1,20 +1,18 @@
-// traffic_mpi.c
-// Autómata celular 1D distribuido con MPI.
-// Partición por bloques + ghost cells + periodicidad.
-
-#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <mpi.h>
+#include <sys/resource.h>
 #include <time.h>
 
-static inline double now() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec + ts.tv_nsec * 1e-9;
+/* ======================================== */
+double timeval_to_seconds(struct timeval tv) {
+    return tv.tv_sec + tv.tv_usec / 1e6;
 }
+/* ======================================== */
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
+
     MPI_Init(&argc, &argv);
 
     int rank, size;
@@ -22,107 +20,134 @@ int main(int argc, char** argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     if (argc < 6) {
-        if (rank==0)
-            fprintf(stderr, "Uso: %s N steps density print_freq out.csv\n", argv[0]);
+        if (rank == 0)
+            fprintf(stderr, "Uso: %s N steps density print_freq output.csv\n", argv[0]);
         MPI_Finalize();
-        return EXIT_FAILURE;
+        return 1;
     }
 
-    long N = atol(argv[1]);
+    int N = atoi(argv[1]);
     int steps = atoi(argv[2]);
     double density = atof(argv[3]);
     int print_freq = atoi(argv[4]);
-    const char* out_csv = argv[5];
+    char* csv_path = argv[5];
 
-    long base = N / size;
-    int rem = N % size;
-    long local_n = base + (rank < rem ? 1 : 0);
+    int local_N = N / size;
+    if (rank == size - 1)
+        local_N += N % size;
 
-    long offset = rank * base + (rank < rem ? rank : rem);
+    int* road = calloc(local_N + 2, sizeof(int));  /* +2 ghost cells */
+    int* next = calloc(local_N + 2, sizeof(int));
 
-    long alloc = local_n + 2;
-    unsigned char *old = malloc(alloc);
-    unsigned char *new = malloc(alloc);
-    if (!old || !new) {
-        perror("malloc");
-        MPI_Abort(MPI_COMM_WORLD, 1);
+    srand(rank + 1);
+
+    for (int i = 1; i <= local_N; i++) {
+        double r = rand() / (double)RAND_MAX;
+        road[i] = (r < density) ? 1 : 0;
     }
 
-    srand(time(NULL) + rank * 777);
-    for (long i = 1; i <= local_n; ++i)
-        old[i] = ((double)rand() / RAND_MAX) < density ? 1 : 0;
+    long long local_cars = 0;
+    for (int i = 1; i <= local_N; i++)
+        local_cars += road[i];
 
-    old[0] = old[local_n+1] = 0;
-    memset(new, 0, alloc);
+    long long total_cars = 0;
+    MPI_Reduce(&local_cars, &total_cars, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 
-    int left = (rank - 1 + size) % size;
-    int right = (rank + 1) % size;
+    /* ============================================== */
+    /*  PROFILING CPU/MEMORIA - INICIO               */
+    /* ============================================== */
+    struct rusage start_u, end_u;
+    struct timespec start_r, end_r;
 
-    FILE *f = NULL;
     if (rank == 0) {
-        f = fopen(out_csv, "w");
-        if (!f) { perror("fopen"); MPI_Abort(MPI_COMM_WORLD, 1); }
-        fprintf(f, "step,avg_velocity,global_moved,global_cars,wall_time\n");
+        getrusage(RUSAGE_SELF, &start_u);
+        clock_gettime(CLOCK_MONOTONIC, &start_r);
     }
 
-    double t_start = MPI_Wtime();
+    double total_comm_time = 0;
 
+    /* ============================================== */
+    /*  AUTÓMATA CELULAR MPI                           */
+    /* ============================================== */
     for (int t = 0; t < steps; t++) {
-        unsigned char send_left = old[1];
-        unsigned char send_right = old[local_n];
-        unsigned char recv_left, recv_right;
 
-        MPI_Sendrecv(&send_left, 1, MPI_UNSIGNED_CHAR, left, 0,
-                     &recv_right,  1, MPI_UNSIGNED_CHAR, right, 0,
+        double comm_s = MPI_Wtime();
+
+        int left_rank = (rank == 0) ? size - 1 : rank - 1;
+        int right_rank = (rank + 1) % size;
+
+        MPI_Sendrecv(&road[1], 1, MPI_INT, left_rank, 0,
+                     &road[local_N + 1], 1, MPI_INT, right_rank, 0,
                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        MPI_Sendrecv(&send_right, 1, MPI_UNSIGNED_CHAR, right, 1,
-                     &recv_left,   1, MPI_UNSIGNED_CHAR, left, 1,
+        MPI_Sendrecv(&road[local_N], 1, MPI_INT, right_rank, 1,
+                     &road[0], 1, MPI_INT, left_rank, 1,
                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        old[0] = recv_left;
-        old[local_n+1] = recv_right;
+        total_comm_time += MPI_Wtime() - comm_s;
 
-        long local_moved = 0, local_cars = 0;
-        memset(new+1, 0, local_n);
+        memset(next, 0, (local_N + 2) * sizeof(int));
 
-        for (long i = 1; i <= local_n; i++) {
-            if (old[i]) {
-                local_cars++;
-                if (old[i+1] == 0) {
-                    new[i+1] = 1;
-                    local_moved++;
-                } else {
-                    new[i] = 1;
-                }
-            }
+        int moved_local = 0;
+
+        for (int i = 1; i <= local_N; i++) {
+            int right = i + 1;
+            if (right > local_N) right = local_N + 1;
+
+            int move = (road[i] == 1 && road[right] == 0);
+
+            if (move) moved_local++;
+
+            next[i] |= road[i] & !move;
+            next[right] |= move;
         }
 
-        long global_moved = 0, global_cars = 0;
-        MPI_Allreduce(&local_moved, &global_moved, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
-        MPI_Allreduce(&local_cars,  &global_cars,  1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+        int* tmp = road;
+        road = next;
+        next = tmp;
 
-        double wall = MPI_Wtime() - t_start;
-        double avg_vel = global_cars ? (double)global_moved / global_cars : 0.0;
+        int moved_global = 0;
+        MPI_Reduce(&moved_local, &moved_global, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
-        if (rank == 0) {
-            if (print_freq > 0 && (t % print_freq == 0))
-                printf("step %d avg_vel %.6f\n", t, avg_vel);
-
-            fprintf(f, "%d,%.6f,%ld,%ld,%.6f\n",
-                    t, avg_vel, global_moved, global_cars, wall);
+        if (rank == 0 && t % print_freq == 0) {
+            double avg_vel = (double)moved_global / total_cars;
+            FILE* f = fopen(csv_path, (t == 0) ? "w" : "a");
+            fprintf(f, "%d,%f,%d,%lld\n", t, avg_vel, moved_global, total_cars);
+            fclose(f);
         }
-
-        unsigned char *tmp = old; old = new; new = tmp;
     }
 
+    /* ============================================== */
+    /*  PROFILING CPU/MEMORIA - FIN                   */
+    /* ============================================== */
     if (rank == 0) {
-        printf("MPI finalizado.\n");
+        clock_gettime(CLOCK_MONOTONIC, &end_r);
+        getrusage(RUSAGE_SELF, &end_u);
+
+        double real_time =
+            (end_r.tv_sec - start_r.tv_sec) +
+            (end_r.tv_nsec - start_r.tv_nsec) / 1e9;
+
+        double user_cpu =
+            timeval_to_seconds(end_u.ru_utime) -
+            timeval_to_seconds(start_u.ru_utime);
+
+        double sys_cpu =
+            timeval_to_seconds(end_u.ru_stime) -
+            timeval_to_seconds(start_u.ru_stime);
+
+        size_t mem_kb = end_u.ru_maxrss;
+
+        FILE* f = fopen("results/mpi_profiling.csv", "a");
+        fprintf(f,
+            "%d,%f,%f,%f,%zu,%f\n",
+            N, real_time, user_cpu, sys_cpu, mem_kb, total_comm_time
+        );
         fclose(f);
     }
 
-    free(old);
-    free(new);
+    free(road);
+    free(next);
 
     MPI_Finalize();
     return 0;

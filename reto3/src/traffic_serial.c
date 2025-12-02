@@ -1,86 +1,147 @@
-// traffic_serial.c
-// Autómata celular 1D (tráfico) versión secuencial.
-// Periodicidad: celda 0 <- celda N-1, celda N+1 <- celda 1
-// CSV: step, avg_velocity, moved, cars, wall_time
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <string.h>
 
-static inline double now_seconds(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec + ts.tv_nsec * 1e-9;
+/* ======================================================
+ * ESTRUCTURA DE MÉTRICAS
+ * ====================================================== */
+typedef struct {
+    double real_time;
+    double user_time;
+    double system_time;
+    double total_cpu_time;
+    long long total_cells;
+    size_t memory_used_kb;
+} PerformanceStats;
+
+
+/* ======================================================
+ * FUNCIÓN: TIEMPO A SEGUNDOS
+ * ====================================================== */
+double timeval_to_seconds(struct timeval tv) {
+    return tv.tv_sec + (tv.tv_usec / 1000000.0);
 }
 
-int main(int argc, char** argv) {
+
+/* ======================================================
+ * GENERAR CARRETERA INICIAL
+ * ====================================================== */
+int* create_road(int N, double density) {
+    int* road = malloc(N * sizeof(int));
+    for (int i = 0; i < N; i++) {
+        double r = rand() / (double)RAND_MAX;
+        road[i] = (r < density) ? 1 : 0;
+    }
+    return road;
+}
+
+
+/* ======================================================
+ * AUTÓMATA CELULAR (REGLA 184)
+ * ====================================================== */
+void update_road(int* road, int* next, int N) {
+    for (int i = 0; i < N; i++) {
+        int right = (i + 1) % N;
+        int move = (road[i] == 1 && road[right] == 0);
+
+        next[i] = road[i] & !move;
+        next[right] |= move;
+    }
+}
+
+
+/* ======================================================
+ * PROGRAMA PRINCIPAL
+ * ====================================================== */
+int main(int argc, char* argv[]) {
     if (argc < 6) {
-        fprintf(stderr, "Uso: %s N steps density print_freq out.csv\n", argv[0]);
-        return EXIT_FAILURE;
+        fprintf(stderr, "Uso: %s N steps density print_freq output.csv\n", argv[0]);
+        return 1;
     }
 
-    long N = atol(argv[1]);
+    int N = atoi(argv[1]);
     int steps = atoi(argv[2]);
     double density = atof(argv[3]);
     int print_freq = atoi(argv[4]);
-    const char* out_csv = argv[5];
-
-    long alloc = N + 2;
-    unsigned char *old = malloc(alloc);
-    unsigned char *new = malloc(alloc);
-    if (!old || !new) { perror("malloc"); return EXIT_FAILURE; }
+    char* csv_path = argv[5];
 
     srand(time(NULL));
-    for (long i = 1; i <= N; ++i)
-        old[i] = ((double)rand() / RAND_MAX) < density ? 1 : 0;
 
-    old[0] = old[N+1] = 0;
-    memset(new, 0, alloc);
+    int* road = create_road(N, density);
+    int* next = calloc(N, sizeof(int));
 
-    FILE *f = fopen(out_csv, "w");
-    if (!f) { perror("fopen"); return EXIT_FAILURE; }
-    fprintf(f, "step,avg_velocity,moved,cars,wall_time\n");
+    FILE* f = fopen(csv_path, "w");
+    fprintf(f, "step,avg_velocity,moved,total_cars\n");
 
-    double t0 = now_seconds();
+    long long total_cars = 0;
+    for (int i = 0; i < N; i++) total_cars += road[i];
 
+    /* ============================ */
+    /*   PROFILING: inicio CPU     */
+    /* ============================ */
+    struct rusage start_usage, end_usage;
+    struct timespec start_real, end_real;
+
+    getrusage(RUSAGE_SELF, &start_usage);
+    clock_gettime(CLOCK_MONOTONIC, &start_real);
+
+    /* ============================ */
+    /*   SIMULACIÓN                 */
+    /* ============================ */
     for (int t = 0; t < steps; t++) {
-        // periodic boundaries
-        old[0] = old[N];
-        old[N+1] = old[1];
+        memset(next, 0, N * sizeof(int));
+        int moved = 0;
 
-        long moved = 0, cars = 0;
-        memset(new+1, 0, N);
+        for (int i = 0; i < N; i++) {
+            int right = (i + 1) % N;
+            int move = (road[i] == 1 && road[right] == 0);
 
-        for (long i = 1; i <= N; ++i) {
-            if (old[i]) {
-                cars++;
-                if (old[i+1] == 0) {
-                    new[i+1] = 1;
-                    moved++;
-                } else {
-                    new[i] = 1;
-                }
-            }
+            if (move) moved++;
+
+            next[i] |= road[i] & !move;
+            next[right] |= move;
         }
 
-        double wall = now_seconds() - t0;
-        double avg_vel = cars ? (double)moved / cars : 0.0;
+        int* tmp = road;
+        road = next;
+        next = tmp;
 
-        if (print_freq > 0 && (t % print_freq == 0))
-            printf("step %d avg_vel %.6f moved %ld cars %ld\n",
-                   t, avg_vel, moved, cars);
-
-        fprintf(f, "%d,%.6f,%ld,%ld,%.6f\n",
-                t, avg_vel, moved, cars, wall);
-
-        unsigned char *tmp = old; old = new; new = tmp;
+        if (t % print_freq == 0) {
+            double avg_vel = (double)moved / total_cars;
+            fprintf(f, "%d,%f,%d,%lld\n", t, avg_vel, moved, total_cars);
+        }
     }
 
-    printf("Serial finalizado\n");
+    /* ============================ */
+    /*   PROFILING: fin CPU        */
+    /* ============================ */
+    clock_gettime(CLOCK_MONOTONIC, &end_real);
+    getrusage(RUSAGE_SELF, &end_usage);
+
+    PerformanceStats stats;
+
+    stats.real_time =
+        (end_real.tv_sec - start_real.tv_sec) +
+        (end_real.tv_nsec - start_real.tv_nsec) / 1e9;
+
+    stats.user_time =
+        timeval_to_seconds(end_usage.ru_utime) -
+        timeval_to_seconds(start_usage.ru_utime);
+
+    stats.system_time =
+        timeval_to_seconds(end_usage.ru_stime) -
+        timeval_to_seconds(start_usage.ru_stime);
+
+    stats.total_cpu_time = stats.user_time + stats.system_time;
+    stats.memory_used_kb = end_usage.ru_maxrss;
 
     fclose(f);
-    free(old);
-    free(new);
+
+    free(road);
+    free(next);
+
     return 0;
 }
