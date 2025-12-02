@@ -8,10 +8,7 @@ RESULTS_DIR = "results"
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 # Tamaños de prueba
-N_SIZES = [
-    5000, 10000, 20000, 40000,
-    60000, 80000
-]
+N_SIZES = [5000, 10000, 20000, 40000, 60000, 80000]
 
 TRIALS = 10
 
@@ -34,6 +31,11 @@ def get_memory_kb(pid):
     except:
         pass
     return -1
+
+
+def reset_child_usage():
+    """Reinicia los contadores del hijo (importante para pruebas múltiples)."""
+    resource.getrusage(resource.RUSAGE_CHILDREN)
 
 
 def run_and_profile(cmd):
@@ -72,10 +74,12 @@ def run_serial_tests():
 
         for trial in range(1, TRIALS + 1):
             print(f"\n===== TRIAL {trial} (SECUENCIAL) =====\n")
+            reset_child_usage()
+
             for N in N_SIZES:
 
-                tmp_out = f"{RESULTS_DIR}/serial_{N}_{trial}.csv"
-                cmd = f"./traffic_serial {N} {STEPS} {DENSITY} {PRINT_FREQ} {tmp_out}"
+                # Tiramos la salida del autómata a /dev/null
+                cmd = f"./traffic_serial {N} {STEPS} {DENSITY} {PRINT_FREQ} /dev/null"
 
                 real_t, user_t, sys_t, mem = run_and_profile(cmd)
 
@@ -99,21 +103,20 @@ def run_mpi_tests():
 
             for trial in range(1, TRIALS + 1):
                 print(f"\n===== TRIAL {trial} (MPI {p} PROCESOS) =====\n")
+                reset_child_usage()
 
                 for N in N_SIZES:
 
-                    tmp_out = f"{RESULTS_DIR}/mpi_{p}p_{N}_{trial}.csv"
-
                     cmd = (
                         f"mpiexec -n {p} -host {MPI_HOSTS} -oversubscribe "
-                        f"./traffic_mpi {N} {STEPS} {DENSITY} {PRINT_FREQ} {tmp_out}"
+                        f"./traffic_mpi {N} {STEPS} {DENSITY} {PRINT_FREQ} /dev/null"
                     )
 
                     real_t, user_t, sys_t, mem = run_and_profile(cmd)
 
                     f.write(f"{N},{trial},{p},{real_t},{user_t},{sys_t},{mem}\n")
 
-        print(f"✔ Archivo MPI {p} procesos guardado en: {out}")
+        print(f"✔ Archivo MPI {p}p guardado en: {out}")
 
 
 def main():
