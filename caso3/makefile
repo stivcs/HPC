@@ -23,6 +23,15 @@ run:
 test:
 	python3 test.py
 
+tablas:
+	python3 tablas.py
+
+grafica:
+	python3 Grafica1.py
+
+speedup:
+	python3 speedup.py
+
 clean:
 	rm -f $(EXEC) *.o
 	rm -f results/*.csv
