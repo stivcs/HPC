@@ -54,15 +54,19 @@ int main(int argc, char **argv) {
     MPI_Reduce(&local_cars, &total_cars, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 
     /* ============================================== */
-    /*  PROFILING CPU/MEMORIA - INICIO               */
+    /*      PROFILING: TIEMPO REAL GLOBAL MPI         */
+    /* ============================================== */
+
+    MPI_Barrier(MPI_COMM_WORLD);   // todos listos
+    double mpi_start = MPI_Wtime(); // tiempo real correcto
+
+    /* ============================================== */
+    /*      PROFILING CPU/MEMORIA (solo rank 0)       */
     /* ============================================== */
     struct rusage start_u, end_u;
-    struct timespec start_r, end_r;
 
-    if (rank == 0) {
+    if (rank == 0)
         getrusage(RUSAGE_SELF, &start_u);
-        clock_gettime(CLOCK_MONOTONIC, &start_r);
-    }
 
     double total_comm_time = 0;
 
@@ -118,15 +122,19 @@ int main(int argc, char **argv) {
     }
 
     /* ============================================== */
-    /*  PROFILING CPU/MEMORIA - FIN                   */
+    /*  PROFILING: FIN TIEMPO GLOBAL                  */
     /* ============================================== */
-    if (rank == 0) {
-        clock_gettime(CLOCK_MONOTONIC, &end_r);
-        getrusage(RUSAGE_SELF, &end_u);
 
-        double real_time =
-            (end_r.tv_sec - start_r.tv_sec) +
-            (end_r.tv_nsec - start_r.tv_nsec) / 1e9;
+    MPI_Barrier(MPI_COMM_WORLD);
+    double mpi_end = MPI_Wtime();
+    double mpi_real_time = mpi_end - mpi_start;
+
+    /* ============================================== */
+    /*  PROFILING: CPU + MEMORIA (solo rank 0)        */
+    /* ============================================== */
+
+    if (rank == 0) {
+        getrusage(RUSAGE_SELF, &end_u);
 
         double user_cpu =
             timeval_to_seconds(end_u.ru_utime) -
@@ -141,7 +149,7 @@ int main(int argc, char **argv) {
         FILE* f = fopen("results/mpi_profiling.csv", "a");
         fprintf(f,
             "%d,%f,%f,%f,%zu,%f\n",
-            N, real_time, user_cpu, sys_cpu, mem_kb, total_comm_time
+            N, mpi_real_time, user_cpu, sys_cpu, mem_kb, total_comm_time
         );
         fclose(f);
     }
